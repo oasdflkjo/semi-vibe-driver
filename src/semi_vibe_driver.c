@@ -438,11 +438,10 @@ static bool send_and_receive(const char *command, char *response) {
 
   response[bytes_received] = '\0';
 
-  // Check for error response
+  // Log error responses but don't treat them as failures
   if (response[0] >= '1' && response[0] <= '3' &&
       strcmp(response + 1, "FFFFF") == 0) {
     log_message("Error response: %s", response);
-    return false;
   }
 
   return true;

@@ -12,6 +12,7 @@ import subprocess
 import re
 from pathlib import Path
 import threading
+import queue
 
 
 def is_server_ready(host="localhost", port=8989, max_attempts=10):
@@ -61,44 +62,6 @@ def build_project():
         return False
     print("Build completed successfully.")
     return True
-
-
-def parse_server_log(log_content):
-    """Parse the server log to extract communication details."""
-    communications = []
-
-    # Regular expressions to match the relevant log lines
-    received_pattern = re.compile(r"\[DEVICE\] Received: (\w+)")
-    sent_pattern = re.compile(r"\[DEVICE\] Sent response: (\w+)")
-
-    # Process the log line by line
-    lines = log_content.split("\n")
-    i = 0
-    while i < len(lines):
-        received_match = received_pattern.search(lines[i])
-        if received_match:
-            received_cmd = received_match.group(1)
-            # Look for the corresponding sent response
-            if i + 1 < len(lines):
-                sent_match = sent_pattern.search(lines[i + 1])
-                if sent_match:
-                    sent_response = sent_match.group(1)
-                    communications.append(
-                        {
-                            "driver_sent": received_cmd,
-                            "device_received": received_cmd,
-                            "device_sent": sent_response,
-                            "driver_received": sent_response,
-                            "description": get_command_description(
-                                received_cmd, sent_response
-                            ),
-                        }
-                    )
-                    i += 2  # Skip the next line as we've already processed it
-                    continue
-        i += 1
-
-    return communications
 
 
 def get_command_description(command, response):
@@ -307,6 +270,18 @@ def get_command_description(command, response):
     return cmd_desc, response_interpretation
 
 
+def display_communication_entry(comm):
+    """Display a single communication entry in a nice format."""
+    cmd_desc, resp_desc = comm["description"]
+    print(
+        f"SENT: {comm['driver_sent']:^13}  | RECEIVED: {comm['device_received']:^10} | {cmd_desc}"
+    )
+    print(
+        f"RECEIVED: {comm['driver_received']:^9}  | SENT: {comm['device_sent']:^14} | {resp_desc}"
+    )
+    print(f"{'-'*20} | {'-'*20} | {'-'*50}")
+
+
 def display_communication(communications):
     """Display the communication in a nice format."""
     print("\n======== COMMUNICATION LOG ========")
@@ -314,14 +289,55 @@ def display_communication(communications):
     print(f"{'-'*21}|{'-'*22}|{'-'*50}")
 
     for comm in communications:
-        cmd_desc, resp_desc = comm["description"]
-        print(
-            f"SENT: {comm['driver_sent']:^13}  | RECEIVED: {comm['device_received']:^10} | {cmd_desc}"
-        )
-        print(
-            f"RECEIVED: {comm['driver_received']:^9}  | SENT: {comm['device_sent']:^14} | {resp_desc}"
-        )
-        print(f"{'-'*20} | {'-'*20} | {'-'*50}")
+        display_communication_entry(comm)
+
+
+def process_server_output(output_queue, communications):
+    """Process server output in real-time and extract communication details."""
+    received_cmd = None
+
+    # Regular expressions to match the relevant log lines
+    received_pattern = re.compile(r"\[DEVICE\] Received: (\w+)")
+    sent_pattern = re.compile(r"\[DEVICE\] Sent response: (\w+)")
+
+    while True:
+        try:
+            line = output_queue.get(timeout=0.1)
+            if line is None:  # None is our signal to exit
+                break
+
+            # Don't print server output to console - just process it silently
+            # Process the line to extract communication details
+            received_match = received_pattern.search(line)
+            if received_match:
+                received_cmd = received_match.group(1)
+                continue
+
+            sent_match = sent_pattern.search(line)
+            if sent_match and received_cmd:
+                sent_response = sent_match.group(1)
+                communications.append(
+                    {
+                        "driver_sent": received_cmd,
+                        "device_received": received_cmd,
+                        "device_sent": sent_response,
+                        "driver_received": sent_response,
+                        "description": get_command_description(
+                            received_cmd, sent_response
+                        ),
+                    }
+                )
+                received_cmd = None  # Reset for the next command
+
+        except queue.Empty:
+            continue
+
+
+def read_output(pipe, queue):
+    """Read output from a pipe and put it in a queue."""
+    for line in iter(pipe.readline, b""):
+        queue.put(line.decode("utf-8").strip())
+    queue.put(None)  # Signal that we're done
 
 
 def run_integration_test():
@@ -332,13 +348,8 @@ def run_integration_test():
     print("\nRunning integration test...")
     print("==========================")
 
-    # Remove any existing server log file
-    if os.path.exists("server_log.txt"):
-        os.remove("server_log.txt")
-
-    # Start the server in a separate process but redirect output to a log file
+    # Start the server in a separate process with pipes for stdout/stderr
     print("Starting device server...")
-    log_file = open("server_log.txt", "w", buffering=1)  # Line buffered
 
     # On Windows, we need to use CREATE_NO_WINDOW flag to prevent a console window
     startupinfo = None
@@ -349,17 +360,37 @@ def run_integration_test():
 
     server = subprocess.Popen(
         [sys.executable, "python/server.py"],
-        stdout=log_file,
+        stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
         startupinfo=startupinfo,
-        universal_newlines=True,  # Text mode
+        bufsize=1,  # Line buffered
+        universal_newlines=False,  # Binary mode
     )
+
+    # Create a queue for the server output
+    output_queue = queue.Queue()
+
+    # Create a list to store communication details
+    communications = []
+
+    # Start a thread to read the server output
+    output_thread = threading.Thread(
+        target=read_output, args=(server.stdout, output_queue)
+    )
+    output_thread.daemon = True
+    output_thread.start()
+
+    # Start a thread to process the server output
+    process_thread = threading.Thread(
+        target=process_server_output, args=(output_queue, communications)
+    )
+    process_thread.daemon = True
+    process_thread.start()
 
     # Wait for server to start
     if not is_server_ready():
         print("Server failed to start properly.")
         server.terminate()
-        log_file.close()
         return 1
 
     # Import the driver module
@@ -373,13 +404,11 @@ def run_integration_test():
     if not driver.init():
         print("Failed to initialize driver")
         server.terminate()
-        log_file.close()
         return 1
 
     if not driver.connect("localhost"):
         print("Failed to connect to device")
         server.terminate()
-        log_file.close()
         return 1
 
     try:
@@ -389,6 +418,7 @@ def run_integration_test():
             print("Failed to get device status")
             return 1
 
+        print("\n======== TEST RESULTS ========")
         print("\nDevice status:")
         print(f"  Connected: {status['connected']}")
         print(f"  Sensors powered: {status['sensors_powered']}")
@@ -497,13 +527,78 @@ def run_integration_test():
         print(f"  Heater value: {actuators['heater_value']}")
         print(f"  Doors value: 0x{actuators['doors_value']:02X}")
 
-        print("\nAll tests completed successfully!")
-        return 0
-    finally:
-        # Always disconnect from device
+        # Additional tests for read-only and write-only locations
+        print("\n======== ADDITIONAL TESTS ========")
+
+        # Test 1: Writing to read-only locations (MAIN and SENSOR)
+        print("\nTesting writing to read-only locations...")
+
+        print("Attempting to write to MAIN register (should fail)...")
+        response = driver.send_command("102101")  # Try to write to power_state register
+        print(f"  Response: {response}")
+        print("  Expected: Error response or failure")
+
+        print("Attempting to write to SENSOR register (should fail)...")
+        response = driver.send_command("210101")  # Try to write to sensor_a_id register
+        print(f"  Response: {response}")
+        print("  Expected: Error response or failure")
+
+        # Test 2: Writing to registers with reserved bits
+        print("\nTesting writing to registers with reserved bits...")
+
+        print("Writing 0xFF to heater (only lower 4 bits should be set)...")
+        driver.set_heater(0xFF)  # Try to set all bits, but only lower 4 should be set
+        actuators = driver.get_actuators()
+        print(f"  Heater value after write: {actuators['heater_value']}")
+        print("  Expected: 15 (0x0F) - only lower 4 bits should be set")
+
+        print("Writing 0xFF to doors (only specific bits should be set)...")
+        driver.set_doors(
+            0xFF
+        )  # Try to set all bits, but only specific bits should be set
+        actuators = driver.get_actuators()
+        print(f"  Doors value after write: 0x{actuators['doors_value']:02X}")
+        print("  Expected: 0x55 - only bits 0, 2, 4, 6 should be set")
+
+        # Test 3: Testing reset register behavior
+        print("\nTesting reset register behavior...")
+
+        # First, set some values to the actuators
+        driver.set_led(200)
+        driver.set_fan(150)
+
+        # Reset only LED and fan
+        print("Resetting only LED and fan...")
+        driver.reset_actuators(True, True, False, False)
+
+        # Check if only LED and fan are reset
+        actuators = driver.get_actuators()
+        print("Actuator values after partial reset:")
+        print(f"  LED value: {actuators['led_value']} (Expected: 0)")
+        print(f"  Fan value: {actuators['fan_value']} (Expected: 0)")
+        print(f"  Heater value: {actuators['heater_value']} (Expected: unchanged)")
+        print(f"  Doors value: 0x{actuators['doors_value']:02X} (Expected: unchanged)")
+
+        # Check if reset register cleared itself
+        print("Checking if reset register cleared itself...")
+        response = driver.send_command("4FE000")  # Read reset_actuators register
+        print(f"  Reset register value: {response}")
+        print(
+            "  Expected: Value with all bits cleared (reset register should auto-clear)"
+        )
+
+        print("\nAll additional tests completed!")
+
+        # Disconnect from device
         print("\nDisconnecting from device...")
         driver.disconnect()
 
+        # Now display the communication log
+        if communications:
+            display_communication(communications)
+
+        return 0
+    finally:
         # Terminate the server
         print("Stopping server...")
         server.terminate()
@@ -513,34 +608,9 @@ def run_integration_test():
             print("Server did not terminate gracefully, forcing termination...")
             server.kill()
 
-        # Close the log file
-        log_file.close()
-
-        # Process and display the communication log
-        try:
-            if (
-                os.path.exists("server_log.txt")
-                and os.path.getsize("server_log.txt") > 0
-            ):
-                with open("server_log.txt", "r") as f:
-                    server_log = f.read()
-                    if server_log:
-                        # Parse the log to extract communication details
-                        communications = parse_server_log(server_log)
-
-                        # Display the communication in a nice format
-                        if communications:
-                            display_communication(communications)
-
-                        # Also display the full server log for reference
-                        print("\nFull Server Log:")
-                        print("--------------")
-                        print(server_log)
-                        print("--------------")
-            else:
-                print("\nNo server log available or log file is empty.")
-        except Exception as e:
-            print(f"Error processing server log: {e}")
+        # Wait for the output thread to finish
+        output_thread.join(timeout=2)
+        process_thread.join(timeout=2)
 
         print("Server stopped.")
 

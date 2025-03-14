@@ -318,8 +318,9 @@ static bool process_command(const char *command, char *response) {
         break;
       }
     } else {
-      // Write to read-only register
+      // Write to read-only register - should return error
       strcpy(response, "1FFFFF");
+      return true; // Return immediately with the error response
     }
     break;
 
@@ -350,6 +351,7 @@ static bool process_command(const char *command, char *response) {
     } else {
       // Write to read-only register
       strcpy(response, "1FFFFF");
+      return true; // Return immediately with the error response
     }
     break;
 

@@ -55,15 +55,23 @@ python run.py test
 This will:
 1. Start the device simulator in the background
 2. Connect to it using the driver
-3. Run a series of tests to verify functionality
-4. Display a detailed communication log showing:
+3. Run a series of tests to verify functionality, including:
+   - Basic device status and sensor reading
+   - Actuator control (LED, fan, heater, doors)
+   - Power management
+   - Reset functionality
+   - Protocol compliance tests (read-only/write-only locations)
+   - Reserved bit handling
+   - Auto-clearing register behavior
+4. Display test results in a clean, organized format
+5. Show a detailed communication log with:
    - All commands sent from driver to device
    - All responses sent from device to driver
    - Human-readable descriptions of each command
    - Interpretations of the response values
-5. Automatically clean up when done
+6. Automatically clean up when done
 
-All output is displayed in a single console window for a clean, integrated experience.
+All output is displayed in a single console window with a clean separation between test results and communication log for a perfect debugging experience.
 
 ## Device and Driver Architecture
 
