@@ -20,24 +20,76 @@ typedef SOCKET socket_t;
 #define BUFFER_SIZE 256
 #define DEFAULT_PORT 8989
 #define DEFAULT_HOST "localhost"
+#define COMMAND_SIZE 7 // 6 hex digits + null terminator
 
-// Global variables
-static LogCallback g_log_callback = NULL;
-static socket_t g_socket = SOCKET_ERROR_VALUE;
-static bool g_initialized = false;
-static bool g_connected = false;
+// Protocol constants
+#define BASE_MAIN 0x1
+#define BASE_SENSOR 0x2
+#define BASE_ACTUATOR 0x3
+#define BASE_CONTROL 0x4
+
+#define OFFSET_CONNECTED_DEVICE 0x00
+#define OFFSET_POWER_STATE 0x02
+#define OFFSET_ERROR_STATE 0x03
+
+#define OFFSET_TEMP_ID 0x10
+#define OFFSET_TEMP_VALUE 0x11
+#define OFFSET_HUMID_ID 0x20
+#define OFFSET_HUMID_VALUE 0x21
+
+#define OFFSET_LED 0x10
+#define OFFSET_FAN 0x20
+#define OFFSET_HEATER 0x30
+#define OFFSET_DOORS 0x40
+
+#define OFFSET_POWER_SENSORS 0xFB
+#define OFFSET_POWER_ACTUATORS 0xFC
+#define OFFSET_RESET_SENSORS 0xFD
+#define OFFSET_RESET_ACTUATORS 0xFE
+
+#define CMD_READ 0x0
+#define CMD_WRITE 0x1
+
+// Bit masks
+#define MASK_TEMP_SENSOR 0x01
+#define MASK_HUMID_SENSOR 0x10
+#define MASK_LED 0x01
+#define MASK_FAN 0x04
+#define MASK_HEATER 0x10
+#define MASK_DOORS 0x40
+#define MASK_HEATER_VALUE 0x0F
+#define MASK_DOORS_VALUE 0x55
+
+// Driver state
+typedef struct {
+  LogCallback log_callback;
+  socket_t socket;
+  bool initialized;
+  bool connected;
+} DriverState;
+
+// Global driver state
+static DriverState g_driver = {.log_callback = NULL,
+                               .socket = SOCKET_ERROR_VALUE,
+                               .initialized = false,
+                               .connected = false};
 
 // Forward declarations
 static void log_message(const char *format, ...);
-static bool send_and_receive(const char *command, char *response);
+static bool build_command(char *buffer, uint8_t base, uint8_t offset,
+                          uint8_t rw, uint8_t data);
+static bool send_and_receive(const char *command, char *response,
+                             size_t response_size);
+static bool read_register(uint8_t base, uint8_t offset, uint8_t *value);
+static bool write_register(uint8_t base, uint8_t offset, uint8_t value);
 
 EXPORT bool driver_init(LogCallback log_callback) {
-  if (g_initialized) {
+  if (g_driver.initialized) {
     log_message("Driver is already initialized");
     return true;
   }
 
-  g_log_callback = log_callback;
+  g_driver.log_callback = log_callback;
 
   // Initialize Winsock
   WSADATA wsaData;
@@ -46,18 +98,18 @@ EXPORT bool driver_init(LogCallback log_callback) {
     return false;
   }
 
-  g_initialized = true;
+  g_driver.initialized = true;
   log_message("Semi-Vibe-Driver initialized");
   return true;
 }
 
 EXPORT bool driver_connect(const char *host, int port) {
-  if (!g_initialized) {
+  if (!g_driver.initialized) {
     log_message("Driver is not initialized");
     return false;
   }
 
-  if (g_connected) {
+  if (g_driver.connected) {
     log_message("Driver is already connected");
     return true;
   }
@@ -71,8 +123,8 @@ EXPORT bool driver_connect(const char *host, int port) {
   }
 
   // Create socket
-  g_socket = socket(AF_INET, SOCK_STREAM, 0);
-  if (g_socket == SOCKET_ERROR_VALUE) {
+  g_driver.socket = socket(AF_INET, SOCK_STREAM, 0);
+  if (g_driver.socket == SOCKET_ERROR_VALUE) {
     log_message("Failed to create socket");
     return false;
   }
@@ -86,351 +138,240 @@ EXPORT bool driver_connect(const char *host, int port) {
   struct hostent *he;
   if ((he = gethostbyname(host)) == NULL) {
     log_message("Failed to resolve hostname");
-    close_socket(g_socket);
-    g_socket = SOCKET_ERROR_VALUE;
+    close_socket(g_driver.socket);
+    g_driver.socket = SOCKET_ERROR_VALUE;
     return false;
   }
 
   // Copy the IP address
   memcpy(&server_addr.sin_addr, he->h_addr_list[0], he->h_length);
 
-  if (connect(g_socket, (struct sockaddr *)&server_addr, sizeof(server_addr)) <
-      0) {
+  if (connect(g_driver.socket, (struct sockaddr *)&server_addr,
+              sizeof(server_addr)) < 0) {
     log_message("Connection failed");
-    close_socket(g_socket);
-    g_socket = SOCKET_ERROR_VALUE;
+    close_socket(g_driver.socket);
+    g_driver.socket = SOCKET_ERROR_VALUE;
     return false;
   }
 
   // Wait for ACK message
   char buffer[BUFFER_SIZE];
   memset(buffer, 0, BUFFER_SIZE);
-  int bytes_received = recv(g_socket, buffer, BUFFER_SIZE - 1, 0);
+  int bytes_received = recv(g_driver.socket, buffer, BUFFER_SIZE - 1, 0);
   if (bytes_received <= 0) {
     log_message("Failed to receive ACK message");
-    close_socket(g_socket);
-    g_socket = SOCKET_ERROR_VALUE;
+    close_socket(g_driver.socket);
+    g_driver.socket = SOCKET_ERROR_VALUE;
     return false;
   }
 
   buffer[bytes_received] = '\0';
   if (strcmp(buffer, "ACK") != 0) {
     log_message("Invalid ACK message: %s", buffer);
-    close_socket(g_socket);
-    g_socket = SOCKET_ERROR_VALUE;
+    close_socket(g_driver.socket);
+    g_driver.socket = SOCKET_ERROR_VALUE;
     return false;
   }
 
-  g_connected = true;
+  g_driver.connected = true;
   log_message("Connected to device at %s:%d", host, port);
   return true;
 }
 
 EXPORT bool driver_disconnect() {
-  if (!g_connected) {
+  if (!g_driver.connected) {
     log_message("Driver is not connected");
     return true;
   }
 
   // Send exit command
   const char *exit_command = "exit";
-  send(g_socket, exit_command, (int)strlen(exit_command), 0);
+  send(g_driver.socket, exit_command, (int)strlen(exit_command), 0);
 
   // Close socket
-  close_socket(g_socket);
-  g_socket = SOCKET_ERROR_VALUE;
-  g_connected = false;
+  close_socket(g_driver.socket);
+  g_driver.socket = SOCKET_ERROR_VALUE;
+  g_driver.connected = false;
 
   log_message("Disconnected from device");
   return true;
 }
 
 EXPORT bool driver_get_status(DeviceStatus *status) {
-  if (!g_connected || !status) {
+  if (!g_driver.connected || !status) {
     return false;
   }
 
-  char response[BUFFER_SIZE];
+  uint8_t connected_device = 0;
+  uint8_t power_state = 0;
+  uint8_t error_state = 0;
 
-  // Get connected_device register
-  if (!send_and_receive("100000", response)) {
+  // Read status registers
+  if (!read_register(BASE_MAIN, OFFSET_CONNECTED_DEVICE, &connected_device) ||
+      !read_register(BASE_MAIN, OFFSET_POWER_STATE, &power_state) ||
+      !read_register(BASE_MAIN, OFFSET_ERROR_STATE, &error_state)) {
     return false;
   }
-  uint8_t connected_device = (uint8_t)strtol(response + 4, NULL, 16);
-
-  // Get power_state register
-  if (!send_and_receive("102000", response)) {
-    return false;
-  }
-  uint8_t power_state = (uint8_t)strtol(response + 4, NULL, 16);
-
-  // Get error_state register
-  if (!send_and_receive("103000", response)) {
-    return false;
-  }
-  uint8_t error_state = (uint8_t)strtol(response + 4, NULL, 16);
 
   // Fill status structure
   status->connected = (connected_device != 0);
   status->sensors_powered =
-      ((power_state & 0x05) != 0); // Check if any sensor is powered
+      ((power_state & (MASK_TEMP_SENSOR | MASK_HUMID_SENSOR)) != 0);
   status->actuators_powered =
-      ((power_state & 0xF0) != 0); // Check if any actuator is powered
+      ((power_state & (MASK_LED | MASK_FAN | MASK_HEATER | MASK_DOORS)) != 0);
   status->has_errors = (error_state != 0);
 
   return true;
 }
 
 EXPORT bool driver_get_sensors(SensorData *data) {
-  if (!g_connected || !data) {
+  if (!g_driver.connected || !data) {
     return false;
   }
 
-  char response[BUFFER_SIZE];
-
-  // Get temperature sensor ID
-  if (!send_and_receive("210000", response)) {
+  // Read sensor registers
+  if (!read_register(BASE_SENSOR, OFFSET_TEMP_ID, &data->temperature_id) ||
+      !read_register(BASE_SENSOR, OFFSET_TEMP_VALUE,
+                     &data->temperature_value) ||
+      !read_register(BASE_SENSOR, OFFSET_HUMID_ID, &data->humidity_id) ||
+      !read_register(BASE_SENSOR, OFFSET_HUMID_VALUE, &data->humidity_value)) {
     return false;
   }
-  data->temperature_id = (uint8_t)strtol(response + 4, NULL, 16);
-
-  // Get temperature sensor reading
-  if (!send_and_receive("211000", response)) {
-    return false;
-  }
-  data->temperature_value = (uint8_t)strtol(response + 4, NULL, 16);
-
-  // Get humidity sensor ID
-  if (!send_and_receive("220000", response)) {
-    return false;
-  }
-  data->humidity_id = (uint8_t)strtol(response + 4, NULL, 16);
-
-  // Get humidity sensor reading
-  if (!send_and_receive("221000", response)) {
-    return false;
-  }
-  data->humidity_value = (uint8_t)strtol(response + 4, NULL, 16);
 
   return true;
 }
 
 EXPORT bool driver_get_actuators(ActuatorData *data) {
-  if (!g_connected || !data) {
+  if (!g_driver.connected || !data) {
     return false;
   }
 
-  char response[BUFFER_SIZE];
-
-  // Get LED value
-  if (!send_and_receive("310000", response)) {
+  // Read actuator registers
+  if (!read_register(BASE_ACTUATOR, OFFSET_LED, &data->led_value) ||
+      !read_register(BASE_ACTUATOR, OFFSET_FAN, &data->fan_value) ||
+      !read_register(BASE_ACTUATOR, OFFSET_HEATER, &data->heater_value) ||
+      !read_register(BASE_ACTUATOR, OFFSET_DOORS, &data->doors_value)) {
     return false;
   }
-  data->led_value = (uint8_t)strtol(response + 4, NULL, 16);
-
-  // Get fan value
-  if (!send_and_receive("320000", response)) {
-    return false;
-  }
-  data->fan_value = (uint8_t)strtol(response + 4, NULL, 16);
-
-  // Get heater value
-  if (!send_and_receive("330000", response)) {
-    return false;
-  }
-  data->heater_value = (uint8_t)strtol(response + 4, NULL, 16);
-
-  // Get doors value
-  if (!send_and_receive("340000", response)) {
-    return false;
-  }
-  data->doors_value = (uint8_t)strtol(response + 4, NULL, 16);
 
   return true;
 }
 
 EXPORT bool driver_set_led(uint8_t value) {
-  if (!g_connected) {
-    return false;
-  }
-
-  char command[7];
-  char response[BUFFER_SIZE];
-
-  sprintf(command, "3101%02X", value);
-  return send_and_receive(command, response);
+  return write_register(BASE_ACTUATOR, OFFSET_LED, value);
 }
 
 EXPORT bool driver_set_fan(uint8_t value) {
-  if (!g_connected) {
-    return false;
-  }
-
-  char command[7];
-  char response[BUFFER_SIZE];
-
-  sprintf(command, "3201%02X", value);
-  return send_and_receive(command, response);
+  return write_register(BASE_ACTUATOR, OFFSET_FAN, value);
 }
 
 EXPORT bool driver_set_heater(uint8_t value) {
-  if (!g_connected) {
-    return false;
-  }
-
   // Heater only uses lower 4 bits
-  value &= 0x0F;
-
-  char command[7];
-  char response[BUFFER_SIZE];
-
-  sprintf(command, "3301%02X", value);
-  return send_and_receive(command, response);
+  return write_register(BASE_ACTUATOR, OFFSET_HEATER,
+                        value & MASK_HEATER_VALUE);
 }
 
 EXPORT bool driver_set_doors(uint8_t value) {
-  if (!g_connected) {
-    return false;
-  }
-
   // Doors only use bits 0, 2, 4, 6
-  value &= 0x55;
-
-  char command[7];
-  char response[BUFFER_SIZE];
-
-  sprintf(command, "3401%02X", value);
-  return send_and_receive(command, response);
+  return write_register(BASE_ACTUATOR, OFFSET_DOORS, value & MASK_DOORS_VALUE);
 }
 
 EXPORT bool driver_power_sensors(bool temperature_on, bool humidity_on) {
-  if (!g_connected) {
-    return false;
-  }
-
   uint8_t value = 0;
-  if (temperature_on) {
-    value |= 0x01;
-  }
-  if (humidity_on) {
-    value |= 0x10;
-  }
+  if (temperature_on)
+    value |= MASK_TEMP_SENSOR;
+  if (humidity_on)
+    value |= MASK_HUMID_SENSOR;
 
-  char command[7];
-  char response[BUFFER_SIZE];
-
-  sprintf(command, "4FB1%02X", value);
-  return send_and_receive(command, response);
+  return write_register(BASE_CONTROL, OFFSET_POWER_SENSORS, value);
 }
 
 EXPORT bool driver_power_actuators(bool led_on, bool fan_on, bool heater_on,
                                    bool doors_on) {
-  if (!g_connected) {
-    return false;
-  }
-
   uint8_t value = 0;
-  if (led_on) {
-    value |= 0x01;
-  }
-  if (fan_on) {
-    value |= 0x04;
-  }
-  if (heater_on) {
-    value |= 0x10;
-  }
-  if (doors_on) {
-    value |= 0x40;
-  }
+  if (led_on)
+    value |= MASK_LED;
+  if (fan_on)
+    value |= MASK_FAN;
+  if (heater_on)
+    value |= MASK_HEATER;
+  if (doors_on)
+    value |= MASK_DOORS;
 
-  char command[7];
-  char response[BUFFER_SIZE];
-
-  sprintf(command, "4FC1%02X", value);
-  return send_and_receive(command, response);
+  return write_register(BASE_CONTROL, OFFSET_POWER_ACTUATORS, value);
 }
 
 EXPORT bool driver_reset_sensors(bool reset_temperature, bool reset_humidity) {
-  if (!g_connected) {
-    return false;
-  }
-
   uint8_t value = 0;
-  if (reset_temperature) {
-    value |= 0x01;
-  }
-  if (reset_humidity) {
-    value |= 0x10;
-  }
+  if (reset_temperature)
+    value |= MASK_TEMP_SENSOR;
+  if (reset_humidity)
+    value |= MASK_HUMID_SENSOR;
 
-  char command[7];
-  char response[BUFFER_SIZE];
-
-  sprintf(command, "4FD1%02X", value);
-  return send_and_receive(command, response);
+  return write_register(BASE_CONTROL, OFFSET_RESET_SENSORS, value);
 }
 
 EXPORT bool driver_reset_actuators(bool reset_led, bool reset_fan,
                                    bool reset_heater, bool reset_doors) {
-  if (!g_connected) {
-    return false;
-  }
-
   uint8_t value = 0;
-  if (reset_led) {
-    value |= 0x01;
-  }
-  if (reset_fan) {
-    value |= 0x04;
-  }
-  if (reset_heater) {
-    value |= 0x10;
-  }
-  if (reset_doors) {
-    value |= 0x40;
-  }
+  if (reset_led)
+    value |= MASK_LED;
+  if (reset_fan)
+    value |= MASK_FAN;
+  if (reset_heater)
+    value |= MASK_HEATER;
+  if (reset_doors)
+    value |= MASK_DOORS;
 
-  char command[7];
-  char response[BUFFER_SIZE];
-
-  sprintf(command, "4FE1%02X", value);
-  return send_and_receive(command, response);
+  return write_register(BASE_CONTROL, OFFSET_RESET_ACTUATORS, value);
 }
 
 EXPORT bool driver_send_command(const char *command, char *response) {
-  if (!g_connected || !command || !response) {
+  if (!g_driver.connected || !command || !response) {
     return false;
   }
 
-  return send_and_receive(command, response);
+  return send_and_receive(command, response, BUFFER_SIZE);
 }
 
 static void log_message(const char *format, ...) {
-  if (g_log_callback) {
+  if (g_driver.log_callback) {
     char buffer[BUFFER_SIZE];
     va_list args;
     va_start(args, format);
     vsnprintf(buffer, BUFFER_SIZE, format, args);
     va_end(args);
 
-    g_log_callback(buffer);
+    g_driver.log_callback(buffer);
   }
 }
 
-static bool send_and_receive(const char *command, char *response) {
-  if (!g_connected || !command || !response) {
+static bool build_command(char *buffer, uint8_t base, uint8_t offset,
+                          uint8_t rw, uint8_t data) {
+  if (!buffer) {
+    return false;
+  }
+
+  // Format: <base><offset><rw><data>
+  snprintf(buffer, COMMAND_SIZE, "%1X%02X%1X%02X", base, offset, rw, data);
+  return true;
+}
+
+static bool send_and_receive(const char *command, char *response,
+                             size_t response_size) {
+  if (!g_driver.connected || !command || !response || response_size < 7) {
     return false;
   }
 
   // Send command
-  if (send(g_socket, command, (int)strlen(command), 0) < 0) {
+  if (send(g_driver.socket, command, (int)strlen(command), 0) < 0) {
     log_message("Failed to send command");
     return false;
   }
 
   // Receive response
-  memset(response, 0, BUFFER_SIZE);
-  int bytes_received = recv(g_socket, response, BUFFER_SIZE - 1, 0);
+  memset(response, 0, response_size);
+  int bytes_received = recv(g_driver.socket, response, response_size - 1, 0);
   if (bytes_received <= 0) {
     log_message("Failed to receive response");
     return false;
@@ -439,10 +380,59 @@ static bool send_and_receive(const char *command, char *response) {
   response[bytes_received] = '\0';
 
   // Log error responses but don't treat them as failures
-  if (response[0] >= '1' && response[0] <= '3' &&
+  if (response[0] >= '1' && response[0] <= '3' && bytes_received >= 6 &&
       strcmp(response + 1, "FFFFF") == 0) {
     log_message("Error response: %s", response);
   }
 
   return true;
+}
+
+static bool read_register(uint8_t base, uint8_t offset, uint8_t *value) {
+  if (!g_driver.connected || !value) {
+    return false;
+  }
+
+  char command[COMMAND_SIZE];
+  char response[BUFFER_SIZE];
+
+  // Build read command (RW=0, data=00)
+  if (!build_command(command, base, offset, CMD_READ, 0x00)) {
+    return false;
+  }
+
+  // Send command and receive response
+  if (!send_and_receive(command, response, BUFFER_SIZE)) {
+    return false;
+  }
+
+  // Parse response (last 2 characters are the data)
+  if (strlen(response) >= 6) {
+    *value = (uint8_t)strtol(response + 4, NULL, 16);
+    return true;
+  }
+
+  return false;
+}
+
+static bool write_register(uint8_t base, uint8_t offset, uint8_t value) {
+  if (!g_driver.connected) {
+    return false;
+  }
+
+  char command[COMMAND_SIZE];
+  char response[BUFFER_SIZE];
+
+  // Build write command (RW=1, data=value)
+  if (!build_command(command, base, offset, CMD_WRITE, value)) {
+    return false;
+  }
+
+  // Send command and receive response
+  if (!send_and_receive(command, response, BUFFER_SIZE)) {
+    return false;
+  }
+
+  // Check if response matches command (write operations echo back the command)
+  return (strcmp(command, response) == 0);
 }

@@ -99,3 +99,21 @@ The driver provides a high-level API to interact with the device:
 - Python 3.6+
 - CMake 3.10+
 - Visual Studio 2019+ or other C compiler 
+
+## Recent Improvements
+
+### Driver Refactoring
+
+The driver implementation has been refactored to improve code quality and maintainability:
+
+1. **Improved Code Organization**: Introduced a `DriverState` struct to encapsulate global state variables, making the code more modular and easier to maintain.
+
+2. **Command Builder Function**: Added a centralized `build_command` function to eliminate code duplication and standardize command construction.
+
+3. **Enhanced Error Handling**: Improved error handling in the `send_and_receive` function to properly log error responses without treating them as failures.
+
+4. **Protocol Compliance**: Ensured proper handling of protocol restrictions, including read-only registers and reserved bits.
+
+5. **Memory Safety**: Implemented safer buffer handling to prevent potential buffer overflow issues.
+
+These improvements make the driver more robust, maintainable, and easier to extend with new functionality. 
