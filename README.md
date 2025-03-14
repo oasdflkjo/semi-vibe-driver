@@ -2,93 +2,81 @@
 
 A simulator for a fictional device with sensors and actuators, designed for Windows.
 
+## Project Overview
+
+This project simulates a fictional device called Semi-Vibe-Device with sensors and actuators. It consists of two main components:
+
+1. **Device Simulator**: Simulates the physical device with sensors and actuators
+2. **Driver**: Provides a high-level API to interact with the device
+
+The project is designed to be extremely minimal, with just two main scripts:
+- `build.py`: Builds the project
+- `run.py`: Runs integration tests between the device and driver
+
 ## Project Structure
 
-- `src/` - C source code for the device simulator
-  - `semi_vibe_device.c` - Main implementation of the device simulator
-  - `semi_vibe_device.h` - Header file with device definitions
-- `test/` - Test code
-  - `test_device.c` - C test program for the device
-- `python/` - Python scripts
-  - `server.py` - Server script that loads the DLL and starts the device server
-  - `test_device.py` - Python test script for the device DLL
-  - `socket_test.py` - Socket test script for the device
-- `build.py` - Simple build script
-- `run.py` - Simple run script
+- `src/` - C source code
+  - `semi_vibe_device.c` - Device simulator implementation
+  - `semi_vibe_device.h` - Device simulator header
+  - `semi_vibe_driver.c` - Driver implementation
+  - `semi_vibe_driver.h` - Driver header
+- `python/` - Python support scripts
+  - `server.py` - Server script for the device simulator
+  - `driver.py` - Python wrapper for the driver
+- `build.py` - Build script
+- `run.py` - Run script for integration testing
 
-## Building the Project
+## Building and Running
 
-### Using the build script
+### Building the Project
+
+To build the project, simply run:
 
 ```
-python build.py
+python run.py build
 ```
 
 This will build the project using CMake and place the output in the `build/` directory.
 
-To clean the build:
+### Running Integration Tests
+
+To run integration tests between the device and driver, simply run:
 
 ```
-python build.py clean
+python run.py
 ```
 
-### Manual Build
-
-1. Create a build directory:
-   ```
-   mkdir build
-   cd build
-   ```
-
-2. Configure with CMake:
-   ```
-   cmake ..
-   ```
-
-3. Build:
-   ```
-   cmake --build .
-   ```
-
-## Running the Project
-
-### Using the run script
+or
 
 ```
-python run.py server  # Run the server only
-python run.py client  # Run the client only
-python run.py both    # Run both server and client
+python run.py test
 ```
 
-When running both server and client, the server will start in a separate window. You'll need to close this window manually when done.
+This will:
+1. Start the device simulator
+2. Connect to it using the driver
+3. Run a series of tests to verify functionality
+4. Automatically clean up when done
 
-### Manual Running
+## Device and Driver Architecture
 
-#### Running the C test program
-
-```
-build/bin/Debug/test_device.exe
-```
-
-#### Running the Python server
-
-```
-python python/server.py
-```
-
-#### Running the Python client
-
-```
-python python/socket_test.py
-```
-
-## Device Specification
+### Device
 
 The device simulates:
 - 2 sensors (temperature and humidity)
 - 4 actuators (LED, fan, heater, and doors)
 
 Commands are sent to the device using a simple protocol as defined in the LAW.md file.
+
+### Driver
+
+The driver provides a high-level API to interact with the device:
+- Connect/disconnect to the device
+- Get device status
+- Read sensor data
+- Control actuators
+- Power management
+- Reset functionality
 
 ## Requirements
 
