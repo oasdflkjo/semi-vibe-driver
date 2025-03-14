@@ -132,8 +132,7 @@ EXPORT bool driver_power_sensors(bool temperature_on, bool humidity_on);
  * @param doors_on Power state for doors
  * @return true if successful, false otherwise
  */
-EXPORT bool driver_power_actuators(bool led_on, bool fan_on, bool heater_on,
-                                   bool doors_on);
+EXPORT bool driver_power_actuators(bool led_on, bool fan_on, bool heater_on, bool doors_on);
 
 /**
  * @brief Reset sensors
@@ -151,8 +150,7 @@ EXPORT bool driver_reset_sensors(bool reset_temperature, bool reset_humidity);
  * @param reset_doors Reset doors
  * @return true if successful, false otherwise
  */
-EXPORT bool driver_reset_actuators(bool reset_led, bool reset_fan,
-                                   bool reset_heater, bool reset_doors);
+EXPORT bool driver_reset_actuators(bool reset_led, bool reset_fan, bool reset_heater, bool reset_doors);
 
 /**
  * @brief Send a raw command to the device

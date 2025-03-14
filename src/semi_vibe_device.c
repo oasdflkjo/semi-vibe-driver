@@ -4,6 +4,7 @@
  */
 
 #include "../include/semi_vibe_device.h"
+#include "../include/semi_vibe_protocol.h"
 
 #include <stdarg.h>
 #include <stdio.h>
@@ -91,8 +92,7 @@ EXPORT bool device_start() {
 
   // Set socket options
   int opt = 1;
-  if (setsockopt(g_server_socket, SOL_SOCKET, SO_REUSEADDR, (const char *)&opt,
-                 sizeof(opt)) < 0) {
+  if (setsockopt(g_server_socket, SOL_SOCKET, SO_REUSEADDR, (const char *)&opt, sizeof(opt)) < 0) {
     log_message("Failed to set socket options");
     close_socket(g_server_socket);
     WSACleanup();
@@ -105,8 +105,7 @@ EXPORT bool device_start() {
   server_addr.sin_addr.s_addr = INADDR_ANY;
   server_addr.sin_port = htons(PORT);
 
-  if (bind(g_server_socket, (struct sockaddr *)&server_addr,
-           sizeof(server_addr)) < 0) {
+  if (bind(g_server_socket, (struct sockaddr *)&server_addr, sizeof(server_addr)) < 0) {
     log_message("Failed to bind socket");
     close_socket(g_server_socket);
     WSACleanup();
@@ -125,8 +124,7 @@ EXPORT bool device_start() {
   log_message("Semi-Vibe-Device simulator started on port %d", PORT);
 
   // Start server thread
-  g_server_thread =
-      (HANDLE)_beginthreadex(NULL, 0, handle_client, NULL, 0, NULL);
+  g_server_thread = (HANDLE)_beginthreadex(NULL, 0, handle_client, NULL, 0, NULL);
   if (g_server_thread == NULL) {
     log_message("Failed to create server thread");
     close_socket(g_server_socket);
@@ -196,8 +194,7 @@ static THREAD_RETURN_TYPE handle_client(void *arg) {
     // Accept connection
     struct sockaddr_in client_addr;
     int client_addr_len = sizeof(client_addr);
-    g_client_socket = accept(g_server_socket, (struct sockaddr *)&client_addr,
-                             &client_addr_len);
+    g_client_socket = accept(g_server_socket, (struct sockaddr *)&client_addr, &client_addr_len);
 
     if (g_client_socket == SOCKET_ERROR_VALUE) {
       if (g_running) {
@@ -251,298 +248,278 @@ static THREAD_RETURN_TYPE handle_client(void *arg) {
 }
 
 static bool process_command(const char *command, char *response) {
-  // Validate command format (6 hex digits)
-  if (strlen(command) != 6) {
-    strcpy(response, "1FFFFF");
+  SemiVibeMessage msg;
+
+  // Parse the command into a message structure
+  if (!parse_message(command, &msg)) {
+    // Invalid format
+    create_error_message(ERROR_FORBIDDEN, &msg);
+    format_message(&msg, response);
     return true;
   }
 
-  for (int i = 0; i < 6; i++) {
-    if (!((command[i] >= '0' && command[i] <= '9') ||
-          (command[i] >= 'A' && command[i] <= 'F') ||
-          (command[i] >= 'a' && command[i] <= 'f'))) {
-      strcpy(response, "1FFFFF");
-      return true;
-    }
-  }
-
-  // Parse command
-  char base_str[2] = {command[0], '\0'};
-  char offset_str[3] = {command[1], command[2], '\0'};
-  char rw_str[2] = {command[3], '\0'};
-  char data_str[3] = {command[4], command[5], '\0'};
-
-  int base = (int)strtol(base_str, NULL, 16);
-  int offset = (int)strtol(offset_str, NULL, 16);
-  int rw = (int)strtol(rw_str, NULL, 16);
-  int data = (int)strtol(data_str, NULL, 16);
-
   // Validate R/W bit
-  if (rw != 0 && rw != 1) {
-    strcpy(response, "2FFFFF");
+  if (msg.rw != CMD_READ && msg.rw != CMD_WRITE) {
+    create_error_message(ERROR_INVALID, &msg);
+    format_message(&msg, response);
     return true;
   }
 
   // Process command based on base address
-  uint8_t read_data = 0;
   bool valid_command = false;
 
-  switch (base) {
-  case 0:
+  switch (msg.base) {
+  case BASE_RESERVED:
     // RESERVED - always invalid
-    strcpy(response, "1FFFFF");
+    create_error_message(ERROR_FORBIDDEN, &msg);
     break;
 
-  case 1:
+  case BASE_MAIN:
     // MAIN - read only
-    if (rw == 0) {
-      switch (offset) {
-      case 0x00:
-        read_data = g_memory.connected_device;
+    if (msg.rw == CMD_READ) {
+      switch (msg.offset) {
+      case OFFSET_CONNECTED_DEVICE:
+        msg.data = g_memory.connected_device;
         valid_command = true;
         break;
-      case 0x01:
-        read_data = g_memory.reserved_main;
+      case OFFSET_RESERVED_MAIN:
+        msg.data = g_memory.reserved_main;
         valid_command = true;
         break;
-      case 0x02:
-        read_data = g_memory.power_state;
+      case OFFSET_POWER_STATE:
+        msg.data = g_memory.power_state;
         valid_command = true;
         break;
-      case 0x03:
-        read_data = g_memory.error_state;
+      case OFFSET_ERROR_STATE:
+        msg.data = g_memory.error_state;
         valid_command = true;
         break;
       default:
-        strcpy(response, "2FFFFF");
+        create_error_message(ERROR_INVALID, &msg);
         break;
       }
     } else {
       // Write to read-only register - should return error
-      strcpy(response, "1FFFFF");
+      create_error_message(ERROR_FORBIDDEN, &msg);
+      format_message(&msg, response);
       return true; // Return immediately with the error response
     }
     break;
 
-  case 2:
+  case BASE_SENSOR:
     // SENSOR - read only
-    if (rw == 0) {
-      switch (offset) {
-      case 0x10:
-        read_data = g_memory.sensor_a_id;
+    if (msg.rw == CMD_READ) {
+      switch (msg.offset) {
+      case OFFSET_TEMP_ID:
+        msg.data = g_memory.sensor_a_id;
         valid_command = true;
         break;
-      case 0x11:
-        read_data = g_memory.sensor_a_reading;
+      case OFFSET_TEMP_VALUE:
+        msg.data = g_memory.sensor_a_reading;
         valid_command = true;
         break;
-      case 0x20:
-        read_data = g_memory.sensor_b_id;
+      case OFFSET_HUMID_ID:
+        msg.data = g_memory.sensor_b_id;
         valid_command = true;
         break;
-      case 0x21:
-        read_data = g_memory.sensor_b_reading;
+      case OFFSET_HUMID_VALUE:
+        msg.data = g_memory.sensor_b_reading;
         valid_command = true;
         break;
       default:
-        strcpy(response, "2FFFFF");
+        create_error_message(ERROR_INVALID, &msg);
         break;
       }
     } else {
       // Write to read-only register
-      strcpy(response, "1FFFFF");
+      create_error_message(ERROR_FORBIDDEN, &msg);
+      format_message(&msg, response);
       return true; // Return immediately with the error response
     }
     break;
 
-  case 3:
+  case BASE_ACTUATOR:
     // ACTUATOR - read/write
-    switch (offset) {
-    case 0x10:
-      if (rw == 0) {
-        read_data = g_memory.actuator_a;
+    switch (msg.offset) {
+    case OFFSET_LED:
+      if (msg.rw == CMD_READ) {
+        msg.data = g_memory.actuator_a;
       } else {
-        g_memory.actuator_a = (uint8_t)data;
+        g_memory.actuator_a = msg.data;
       }
       valid_command = true;
       break;
-    case 0x20:
-      if (rw == 0) {
-        read_data = g_memory.actuator_b;
+    case OFFSET_FAN:
+      if (msg.rw == CMD_READ) {
+        msg.data = g_memory.actuator_b;
       } else {
-        g_memory.actuator_b = (uint8_t)data;
+        g_memory.actuator_b = msg.data;
       }
       valid_command = true;
       break;
-    case 0x30:
-      if (rw == 0) {
-        read_data = g_memory.actuator_c;
+    case OFFSET_HEATER:
+      if (msg.rw == CMD_READ) {
+        msg.data = g_memory.actuator_c;
       } else {
         // Only lower 4 bits are writable
-        g_memory.actuator_c = (uint8_t)(data & 0x0F);
+        g_memory.actuator_c = msg.data & MASK_HEATER_VALUE;
       }
       valid_command = true;
       break;
-    case 0x40:
-      if (rw == 0) {
-        read_data = g_memory.actuator_d;
+    case OFFSET_DOORS:
+      if (msg.rw == CMD_READ) {
+        msg.data = g_memory.actuator_d;
       } else {
         // Only bits 0, 2, 4, 6 are writable
-        g_memory.actuator_d = (uint8_t)(data & 0x55);
+        g_memory.actuator_d = msg.data & MASK_DOORS_VALUE;
       }
       valid_command = true;
       break;
     default:
-      strcpy(response, "2FFFFF");
+      create_error_message(ERROR_INVALID, &msg);
       break;
     }
     break;
 
-  case 4:
+  case BASE_CONTROL:
     // CONTROL - read/write
-    switch (offset) {
-    case 0xFB:
-      if (rw == 0) {
-        read_data = g_memory.power_sensors;
+    switch (msg.offset) {
+    case OFFSET_POWER_SENSORS:
+      if (msg.rw == CMD_READ) {
+        msg.data = g_memory.power_sensors;
       } else {
         // Only bits 0 and 4 are writable
-        g_memory.power_sensors = (uint8_t)(data & 0x11);
+        g_memory.power_sensors = msg.data & 0x11;
 
         // Update connected_device and power_state based on power_sensors
-        if (data & 0x01) {
-          g_memory.connected_device |= 0x01;
-          g_memory.power_state |= 0x01;
+        if (msg.data & MASK_TEMP_SENSOR) {
+          g_memory.connected_device |= MASK_TEMP_SENSOR;
+          g_memory.power_state |= MASK_TEMP_SENSOR;
         } else {
-          g_memory.connected_device &= ~0x01;
-          g_memory.power_state &= ~0x01;
+          g_memory.connected_device &= ~MASK_TEMP_SENSOR;
+          g_memory.power_state &= ~MASK_TEMP_SENSOR;
         }
 
-        if (data & 0x10) {
-          g_memory.connected_device |= 0x04;
-          g_memory.power_state |= 0x04;
+        if (msg.data & MASK_HUMID_SENSOR) {
+          g_memory.connected_device |= MASK_HUMID_SENSOR;
+          g_memory.power_state |= MASK_HUMID_SENSOR;
         } else {
-          g_memory.connected_device &= ~0x04;
-          g_memory.power_state &= ~0x04;
+          g_memory.connected_device &= ~MASK_HUMID_SENSOR;
+          g_memory.power_state &= ~MASK_HUMID_SENSOR;
         }
       }
       valid_command = true;
       break;
-    case 0xFC:
-      if (rw == 0) {
-        read_data = g_memory.power_actuators;
+    case OFFSET_POWER_ACTUATORS:
+      if (msg.rw == CMD_READ) {
+        msg.data = g_memory.power_actuators;
       } else {
         // Only bits 0, 2, 4, 6 are writable
-        g_memory.power_actuators = (uint8_t)(data & 0x55);
+        g_memory.power_actuators = msg.data & MASK_DOORS_VALUE;
 
         // Update connected_device and power_state based on power_actuators
-        if (data & 0x01) {
-          g_memory.connected_device |= 0x10;
-          g_memory.power_state |= 0x10;
+        if (msg.data & MASK_LED) {
+          g_memory.connected_device |= MASK_LED;
+          g_memory.power_state |= MASK_LED;
         } else {
-          g_memory.connected_device &= ~0x10;
-          g_memory.power_state &= ~0x10;
+          g_memory.connected_device &= ~MASK_LED;
+          g_memory.power_state &= ~MASK_LED;
         }
 
-        if (data & 0x04) {
-          g_memory.connected_device |= 0x20;
-          g_memory.power_state |= 0x20;
+        if (msg.data & MASK_FAN) {
+          g_memory.connected_device |= MASK_FAN;
+          g_memory.power_state |= MASK_FAN;
         } else {
-          g_memory.connected_device &= ~0x20;
-          g_memory.power_state &= ~0x20;
+          g_memory.connected_device &= ~MASK_FAN;
+          g_memory.power_state &= ~MASK_FAN;
         }
 
-        if (data & 0x10) {
-          g_memory.connected_device |= 0x40;
-          g_memory.power_state |= 0x40;
+        if (msg.data & MASK_HEATER) {
+          g_memory.connected_device |= MASK_HEATER;
+          g_memory.power_state |= MASK_HEATER;
         } else {
-          g_memory.connected_device &= ~0x40;
-          g_memory.power_state &= ~0x40;
+          g_memory.connected_device &= ~MASK_HEATER;
+          g_memory.power_state &= ~MASK_HEATER;
         }
 
-        if (data & 0x40) {
-          g_memory.connected_device |= 0x80;
-          g_memory.power_state |= 0x80;
+        if (msg.data & MASK_DOORS) {
+          g_memory.connected_device |= MASK_DOORS;
+          g_memory.power_state |= MASK_DOORS;
         } else {
-          g_memory.connected_device &= ~0x80;
-          g_memory.power_state &= ~0x80;
+          g_memory.connected_device &= ~MASK_DOORS;
+          g_memory.power_state &= ~MASK_DOORS;
         }
       }
       valid_command = true;
       break;
-    case 0xFD:
-      if (rw == 0) {
-        read_data = g_memory.reset_sensors;
+    case OFFSET_RESET_SENSORS:
+      if (msg.rw == CMD_READ) {
+        msg.data = g_memory.reset_sensors;
       } else {
         // Only bits 0 and 4 are writable
-        g_memory.reset_sensors = (uint8_t)(data & 0x11);
+        g_memory.reset_sensors = msg.data & 0x11;
 
         // Reset sensors if bit is set
-        if (data & 0x01) {
-          g_memory.error_state &= ~0x01;
-          g_memory.reset_sensors &= ~0x01; // Auto-clear
+        if (msg.data & MASK_TEMP_SENSOR) {
+          g_memory.error_state &= ~MASK_TEMP_SENSOR;
+          g_memory.reset_sensors &= ~MASK_TEMP_SENSOR; // Auto-clear
         }
 
-        if (data & 0x10) {
-          g_memory.error_state &= ~0x04;
-          g_memory.reset_sensors &= ~0x10; // Auto-clear
+        if (msg.data & MASK_HUMID_SENSOR) {
+          g_memory.error_state &= ~MASK_HUMID_SENSOR;
+          g_memory.reset_sensors &= ~MASK_HUMID_SENSOR; // Auto-clear
         }
       }
       valid_command = true;
       break;
-    case 0xFE:
-      if (rw == 0) {
-        read_data = g_memory.reset_actuators;
+    case OFFSET_RESET_ACTUATORS:
+      if (msg.rw == CMD_READ) {
+        msg.data = g_memory.reset_actuators;
       } else {
         // Only bits 0, 2, 4, 6 are writable
-        g_memory.reset_actuators = (uint8_t)(data & 0x55);
+        g_memory.reset_actuators = msg.data & MASK_DOORS_VALUE;
 
         // Reset actuators if bit is set
-        if (data & 0x01) {
-          g_memory.error_state &= ~0x10;
+        if (msg.data & MASK_LED) {
+          g_memory.error_state &= ~MASK_LED;
           g_memory.actuator_a = 0;
-          g_memory.reset_actuators &= ~0x01; // Auto-clear
+          g_memory.reset_actuators &= ~MASK_LED; // Auto-clear
         }
 
-        if (data & 0x04) {
-          g_memory.error_state &= ~0x20;
+        if (msg.data & MASK_FAN) {
+          g_memory.error_state &= ~MASK_FAN;
           g_memory.actuator_b = 0;
-          g_memory.reset_actuators &= ~0x04; // Auto-clear
+          g_memory.reset_actuators &= ~MASK_FAN; // Auto-clear
         }
 
-        if (data & 0x10) {
-          g_memory.error_state &= ~0x40;
+        if (msg.data & MASK_HEATER) {
+          g_memory.error_state &= ~MASK_HEATER;
           g_memory.actuator_c = 0;
-          g_memory.reset_actuators &= ~0x10; // Auto-clear
+          g_memory.reset_actuators &= ~MASK_HEATER; // Auto-clear
         }
 
-        if (data & 0x40) {
-          g_memory.error_state &= ~0x80;
+        if (msg.data & MASK_DOORS) {
+          g_memory.error_state &= ~MASK_DOORS;
           g_memory.actuator_d = 0;
-          g_memory.reset_actuators &= ~0x40; // Auto-clear
+          g_memory.reset_actuators &= ~MASK_DOORS; // Auto-clear
         }
       }
       valid_command = true;
       break;
     default:
-      strcpy(response, "2FFFFF");
+      create_error_message(ERROR_INVALID, &msg);
       break;
     }
     break;
 
   default:
-    strcpy(response, "2FFFFF");
+    create_error_message(ERROR_INVALID, &msg);
     break;
   }
 
   if (valid_command) {
-    if (rw == 0) {
-      // Read command - include read data in response
-      sprintf(response, "%c%c%c%c%02X", command[0], command[1], command[2],
-              command[3], read_data);
-    } else {
-      // Write command - echo back the command
-      strcpy(response, command);
-    }
+    // Format the response
+    format_message(&msg, response);
   }
 
   // Update sensors

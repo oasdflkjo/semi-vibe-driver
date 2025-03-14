@@ -116,4 +116,30 @@ The driver implementation has been refactored to improve code quality and mainta
 
 5. **Memory Safety**: Implemented safer buffer handling to prevent potential buffer overflow issues.
 
-These improvements make the driver more robust, maintainable, and easier to extend with new functionality. 
+6. **Bit Position Constants**: Added named constants for bit positions (e.g., `BIT_LED`, `BIT_FAN`) to improve code readability and maintainability.
+
+7. **Comprehensive Documentation**: Added detailed function documentation with Doxygen-style comments to explain the purpose and parameters of each function.
+
+8. **Improved Logging**: Enhanced logging to include both sent commands and received responses, making debugging easier.
+
+9. **Bitmask Helper Function**: Added a `create_bitmask` helper function to centralize the creation of bitmasks from boolean values, reducing code duplication in power and reset functions.
+
+10. **Protocol Message Struct**: Introduced a `SemiVibeMessage` struct in a new `semi_vibe_protocol.h` file to represent the protocol message format, making the code more elegant and easier to understand. This includes helper functions for parsing, formatting, and creating error messages.
+
+These improvements make the driver more robust, maintainable, and easier to extend with new functionality.
+
+### Code Formatting
+
+Added a comprehensive `.clang-format` configuration with the following features:
+
+1. **Increased Line Length**: Set column limit to 140 characters to allow for more readable code while still maintaining good practices.
+
+2. **Consistent Indentation**: Standardized on 2-space indentation for all code.
+
+3. **Pointer Alignment**: Configured left-aligned pointers (`Type* var`) for consistency.
+
+4. **Brace Style**: Adopted the LLVM-style attached braces for all code blocks.
+
+5. **Include Organization**: Enabled automatic sorting of includes for better organization.
+
+These formatting rules help maintain a consistent code style throughout the project, making it easier to read and maintain. 
