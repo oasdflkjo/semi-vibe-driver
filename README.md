@@ -53,10 +53,17 @@ python run.py test
 ```
 
 This will:
-1. Start the device simulator
+1. Start the device simulator in the background
 2. Connect to it using the driver
 3. Run a series of tests to verify functionality
-4. Automatically clean up when done
+4. Display a detailed communication log showing:
+   - All commands sent from driver to device
+   - All responses sent from device to driver
+   - Human-readable descriptions of each command
+   - Interpretations of the response values
+5. Automatically clean up when done
+
+All output is displayed in a single console window for a clean, integrated experience.
 
 ## Device and Driver Architecture
 

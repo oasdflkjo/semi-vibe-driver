@@ -313,12 +313,15 @@ class Driver:
             print("Not connected to device")
             return None
 
+        print(f"[DRIVER] Sending command: {command}")
         response = ctypes.create_string_buffer(256)
         if not self.driver_lib.driver_send_command(command.encode("utf-8"), response):
             print("Failed to send command")
             return None
 
-        return response.value.decode("utf-8")
+        response_str = response.value.decode("utf-8")
+        print(f"[DRIVER] Received response: {response_str}")
+        return response_str
 
 
 def main():
