@@ -11,37 +11,37 @@ from ctypes import c_bool, c_char_p, c_uint8, Structure, CFUNCTYPE, POINTER
 # Define the callback function type
 LogCallbackType = CFUNCTYPE(None, c_char_p)
 
+
 # Define the DeviceMemory structure
 class DeviceMemory(Structure):
     _fields_ = [
         # MAIN (base address 1)
         ("connected_device", c_uint8),  # 0x00
-        ("reserved_main", c_uint8),     # 0x01
-        ("power_state", c_uint8),       # 0x02
-        ("error_state", c_uint8),       # 0x03
-
+        ("reserved_main", c_uint8),  # 0x01
+        ("power_state", c_uint8),  # 0x02
+        ("error_state", c_uint8),  # 0x03
         # SENSOR (base address 2)
-        ("sensor_a_id", c_uint8),       # 0x10
+        ("sensor_a_id", c_uint8),  # 0x10
         ("sensor_a_reading", c_uint8),  # 0x11
-        ("sensor_b_id", c_uint8),       # 0x20
+        ("sensor_b_id", c_uint8),  # 0x20
         ("sensor_b_reading", c_uint8),  # 0x21
-
         # ACTUATOR (base address 3)
-        ("actuator_a", c_uint8),        # 0x10 (LED)
-        ("actuator_b", c_uint8),        # 0x20 (fan)
-        ("actuator_c", c_uint8),        # 0x30 (heater)
-        ("actuator_d", c_uint8),        # 0x40 (doors)
-
+        ("actuator_a", c_uint8),  # 0x10 (LED)
+        ("actuator_b", c_uint8),  # 0x20 (fan)
+        ("actuator_c", c_uint8),  # 0x30 (heater)
+        ("actuator_d", c_uint8),  # 0x40 (doors)
         # CONTROL (base address 4)
-        ("power_sensors", c_uint8),     # 0xFB
-        ("power_actuators", c_uint8),   # 0xFC
-        ("reset_sensors", c_uint8),     # 0xFD
-        ("reset_actuators", c_uint8),   # 0xFE
+        ("power_sensors", c_uint8),  # 0xFB
+        ("power_actuators", c_uint8),  # 0xFC
+        ("reset_sensors", c_uint8),  # 0xFD
+        ("reset_actuators", c_uint8),  # 0xFE
     ]
+
 
 def log_callback(message):
     """Callback function for device logging."""
     print(f"[DEVICE] {message.decode('utf-8')}")
+
 
 def main():
     """Main function."""
@@ -49,22 +49,25 @@ def main():
     print("---------------------------")
 
     # Load the DLL
-    if sys.platform == 'win32':
-        dll_path = os.path.abspath('../build/bin/semi_vibe_device.dll')
-        try:
-            device_lib = ctypes.CDLL(dll_path)
-        except OSError:
-            print(f"Failed to load DLL from {dll_path}")
-            print("Make sure you have built the DLL using CMake and it's in the correct location.")
-            return 1
-    else:
-        lib_path = os.path.abspath('../build/lib/libsemi_vibe_device.so')
-        try:
-            device_lib = ctypes.CDLL(lib_path)
-        except OSError:
-            print(f"Failed to load shared library from {lib_path}")
-            print("Make sure you have built the shared library using CMake and it's in the correct location.")
-            return 1
+    # Try Debug folder first (Visual Studio default)
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    build_dir = os.path.abspath(os.path.join(script_dir, ".."))
+
+    dll_path = os.path.join(build_dir, "build", "bin", "Debug", "semi_vibe_device.dll")
+    if not os.path.exists(dll_path):
+        # Fall back to regular bin folder
+        dll_path = os.path.join(build_dir, "build", "bin", "semi_vibe_device.dll")
+
+    if not os.path.exists(dll_path):
+        print("Error: DLL not found. Make sure you have built the project.")
+        return 1
+
+    try:
+        device_lib = ctypes.CDLL(dll_path)
+    except OSError as e:
+        print(f"Error: Failed to load DLL: {e}")
+        print("Make sure you have built the DLL using CMake.")
+        return 1
 
     # Define function prototypes
     device_lib.device_init.argtypes = [LogCallbackType]
@@ -121,7 +124,7 @@ def main():
     response = ctypes.create_string_buffer(7)
     for cmd in test_commands:
         print(f"Command: {cmd}")
-        if device_lib.device_process_command(cmd.encode('utf-8'), response):
+        if device_lib.device_process_command(cmd.encode("utf-8"), response):
             print(f"Response: {response.value.decode('utf-8')}")
         else:
             print("Failed to process command")
@@ -154,5 +157,6 @@ def main():
     print("Test completed successfully")
     return 0
 
+
 if __name__ == "__main__":
-    sys.exit(main()) 
+    sys.exit(main())

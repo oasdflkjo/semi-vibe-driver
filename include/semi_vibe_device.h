@@ -6,15 +6,10 @@
 #ifndef SEMI_VIBE_DEVICE_H
 #define SEMI_VIBE_DEVICE_H
 
-#ifdef _WIN32
 #define EXPORT __declspec(dllexport)
-#else
-#define EXPORT
-#endif
 
 #include <stdbool.h>
 #include <stdint.h>
-
 
 /**
  * @brief Callback function type for logging messages from the device

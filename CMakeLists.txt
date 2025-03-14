@@ -29,20 +29,16 @@ add_library(semi_vibe_device SHARED ${SOURCES} ${HEADERS})
 # Set library properties
 set_target_properties(semi_vibe_device PROPERTIES
     VERSION 1.0.0
-    SOVERSION 1
     PUBLIC_HEADER "include/semi_vibe_device.h"
 )
 
 # Link with required libraries
-if(WIN32)
-    target_link_libraries(semi_vibe_device ws2_32)
-endif()
+target_link_libraries(semi_vibe_device ws2_32)
 
 # Install targets
 install(TARGETS semi_vibe_device
-    LIBRARY DESTINATION lib
-    ARCHIVE DESTINATION lib
     RUNTIME DESTINATION bin
+    ARCHIVE DESTINATION lib
     PUBLIC_HEADER DESTINATION include
 )
 

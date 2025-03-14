@@ -33,7 +33,6 @@ def main():
     if not (
         Path("build/bin/Debug/semi_vibe_device.dll").exists()
         or Path("build/bin/semi_vibe_device.dll").exists()
-        or Path("build/lib/libsemi_vibe_device.so").exists()
     ):
         print("Error: Build not found. Run build.py first.")
         sys.exit(1)
@@ -51,29 +50,27 @@ def main():
             subprocess.run([sys.executable, "python/socket_test.py"])
 
         elif cmd == "both":
-            # Start server in background
-            if os.name == "nt":  # Windows
-                server = subprocess.Popen(
-                    [sys.executable, "python/server.py"],
-                    creationflags=subprocess.CREATE_NEW_CONSOLE,
-                )
-            else:
-                server = subprocess.Popen([sys.executable, "python/server.py"])
+            # Since our implementation is now single-threaded, we need to run the server in a separate window
+            # and then run the client
+            print("Starting server in a new window...")
+            server = subprocess.Popen(
+                [sys.executable, "python/server.py"],
+                creationflags=subprocess.CREATE_NEW_CONSOLE,
+            )
 
-            # Wait for server to start and be ready
-            print("Starting server and waiting for it to be ready...")
+            # Wait for server to start
+            print("Waiting for server to start...")
             if not is_server_ready():
-                print("Server failed to start properly. Terminating.")
-                server.terminate()
+                print("Server failed to start properly.")
                 return 1
 
-            try:
-                # Run client
-                subprocess.run([sys.executable, "python/socket_test.py"])
-            finally:
-                # Kill server
-                server.terminate()
-                print("Server stopped.")
+            # Run client
+            print("Running client...")
+            subprocess.run([sys.executable, "python/socket_test.py"])
+
+            print("Client finished. Server is still running in the other window.")
+            print("You'll need to close the server window manually when done.")
+
         else:
             print(f"Unknown command: {cmd}")
             print("Usage: python run.py [server|client|both]")

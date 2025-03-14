@@ -11,8 +11,6 @@
 #include <string.h>
 #include <time.h>
 
-
-#ifdef _WIN32
 #include <process.h>
 #include <winsock2.h>
 #include <ws2tcpip.h>
@@ -22,18 +20,6 @@ typedef SOCKET socket_t;
 #define close_socket closesocket
 #define THREAD_RETURN_TYPE unsigned __stdcall
 #define THREAD_RETURN_VALUE 0
-#else
-#include <arpa/inet.h>
-#include <netinet/in.h>
-#include <pthread.h>
-#include <sys/socket.h>
-#include <unistd.h>
-typedef int socket_t;
-#define SOCKET_ERROR_VALUE -1
-#define close_socket close
-#define THREAD_RETURN_TYPE void *
-#define THREAD_RETURN_VALUE NULL
-#endif
 
 #define PORT 8989
 #define BUFFER_SIZE 256
@@ -44,20 +30,13 @@ static LogCallback g_log_callback = NULL;
 static bool g_running = false;
 static socket_t g_server_socket = SOCKET_ERROR_VALUE;
 static socket_t g_client_socket = SOCKET_ERROR_VALUE;
-
-#ifdef _WIN32
-static HANDLE g_memory_mutex;
-static HANDLE g_server_thread;
-#else
-static pthread_mutex_t g_memory_mutex;
-static pthread_t g_server_thread;
-#endif
+static HANDLE g_server_thread = NULL;
 
 // Forward declarations
-static THREAD_RETURN_TYPE server_thread_func(void *arg);
 static bool process_command(const char *command, char *response);
 static void log_message(const char *format, ...);
 static void update_sensors();
+static THREAD_RETURN_TYPE handle_client(void *arg);
 
 EXPORT bool device_init(LogCallback log_callback) {
   g_log_callback = log_callback;
@@ -85,20 +64,6 @@ EXPORT bool device_init(LogCallback log_callback) {
   g_memory.power_sensors = 0x11;   // Both sensors powered on
   g_memory.power_actuators = 0x55; // All actuators powered on
 
-  // Initialize mutex
-#ifdef _WIN32
-  g_memory_mutex = CreateMutex(NULL, FALSE, NULL);
-  if (g_memory_mutex == NULL) {
-    log_message("Failed to initialize mutex");
-    return false;
-  }
-#else
-  if (pthread_mutex_init(&g_memory_mutex, NULL) != 0) {
-    log_message("Failed to initialize mutex");
-    return false;
-  }
-#endif
-
   log_message("Semi-Vibe-Device simulator initialized");
   return true;
 }
@@ -109,22 +74,18 @@ EXPORT bool device_start() {
     return false;
   }
 
-#ifdef _WIN32
   // Initialize Winsock
   WSADATA wsaData;
   if (WSAStartup(MAKEWORD(2, 2), &wsaData) != 0) {
     log_message("WSAStartup failed");
     return false;
   }
-#endif
 
   // Create socket
   g_server_socket = socket(AF_INET, SOCK_STREAM, 0);
   if (g_server_socket == SOCKET_ERROR_VALUE) {
     log_message("Failed to create socket");
-#ifdef _WIN32
     WSACleanup();
-#endif
     return false;
   }
 
@@ -134,9 +95,7 @@ EXPORT bool device_start() {
                  sizeof(opt)) < 0) {
     log_message("Failed to set socket options");
     close_socket(g_server_socket);
-#ifdef _WIN32
     WSACleanup();
-#endif
     return false;
   }
 
@@ -150,9 +109,7 @@ EXPORT bool device_start() {
            sizeof(server_addr)) < 0) {
     log_message("Failed to bind socket");
     close_socket(g_server_socket);
-#ifdef _WIN32
     WSACleanup();
-#endif
     return false;
   }
 
@@ -160,18 +117,16 @@ EXPORT bool device_start() {
   if (listen(g_server_socket, 1) < 0) {
     log_message("Failed to listen on socket");
     close_socket(g_server_socket);
-#ifdef _WIN32
     WSACleanup();
-#endif
     return false;
   }
 
-  // Start server thread
   g_running = true;
+  log_message("Semi-Vibe-Device simulator started on port %d", PORT);
 
-#ifdef _WIN32
+  // Start server thread
   g_server_thread =
-      (HANDLE)_beginthreadex(NULL, 0, server_thread_func, NULL, 0, NULL);
+      (HANDLE)_beginthreadex(NULL, 0, handle_client, NULL, 0, NULL);
   if (g_server_thread == NULL) {
     log_message("Failed to create server thread");
     close_socket(g_server_socket);
@@ -179,16 +134,7 @@ EXPORT bool device_start() {
     g_running = false;
     return false;
   }
-#else
-  if (pthread_create(&g_server_thread, NULL, server_thread_func, NULL) != 0) {
-    log_message("Failed to create server thread");
-    close_socket(g_server_socket);
-    g_running = false;
-    return false;
-  }
-#endif
 
-  log_message("Semi-Vibe-Device simulator started on port %d", PORT);
   return true;
 }
 
@@ -213,20 +159,13 @@ EXPORT bool device_stop() {
   }
 
   // Wait for server thread to finish
-#ifdef _WIN32
-  WaitForSingleObject(g_server_thread, INFINITE);
-  CloseHandle(g_server_thread);
-
-  // Destroy mutex
-  CloseHandle(g_memory_mutex);
+  if (g_server_thread != NULL) {
+    WaitForSingleObject(g_server_thread, INFINITE);
+    CloseHandle(g_server_thread);
+    g_server_thread = NULL;
+  }
 
   WSACleanup();
-#else
-  pthread_join(g_server_thread, NULL);
-
-  // Destroy mutex
-  pthread_mutex_destroy(&g_memory_mutex);
-#endif
 
   log_message("Semi-Vibe-Device simulator stopped");
   return true;
@@ -237,16 +176,7 @@ EXPORT bool device_get_memory(DeviceMemory *memory) {
     return false;
   }
 
-#ifdef _WIN32
-  WaitForSingleObject(g_memory_mutex, INFINITE);
   memcpy(memory, &g_memory, sizeof(DeviceMemory));
-  ReleaseMutex(g_memory_mutex);
-#else
-  pthread_mutex_lock(&g_memory_mutex);
-  memcpy(memory, &g_memory, sizeof(DeviceMemory));
-  pthread_mutex_unlock(&g_memory_mutex);
-#endif
-
   return true;
 }
 
@@ -258,19 +188,14 @@ EXPORT bool device_process_command(const char *command, char *response) {
   return process_command(command, response);
 }
 
-static THREAD_RETURN_TYPE server_thread_func(void *arg) {
+static THREAD_RETURN_TYPE handle_client(void *arg) {
   log_message("Server thread started");
+  log_message("Waiting for connection...");
 
   while (g_running) {
-    log_message("Waiting for connection...");
-
     // Accept connection
     struct sockaddr_in client_addr;
-#ifdef _WIN32
     int client_addr_len = sizeof(client_addr);
-#else
-    socklen_t client_addr_len = sizeof(client_addr);
-#endif
     g_client_socket = accept(g_server_socket, (struct sockaddr *)&client_addr,
                              &client_addr_len);
 
@@ -359,12 +284,6 @@ static bool process_command(const char *command, char *response) {
   }
 
   // Process command based on base address
-#ifdef _WIN32
-  WaitForSingleObject(g_memory_mutex, INFINITE);
-#else
-  pthread_mutex_lock(&g_memory_mutex);
-#endif
-
   uint8_t read_data = 0;
   bool valid_command = false;
 
@@ -627,12 +546,6 @@ static bool process_command(const char *command, char *response) {
   // Update sensors
   update_sensors();
 
-#ifdef _WIN32
-  ReleaseMutex(g_memory_mutex);
-#else
-  pthread_mutex_unlock(&g_memory_mutex);
-#endif
-
   return true;
 }
 
@@ -649,9 +562,32 @@ static void log_message(const char *format, ...) {
 }
 
 static void update_sensors() {
+  static uint8_t temp_base = 128;  // Base temperature (middle range)
+  static uint8_t humid_base = 128; // Base humidity (middle range)
+
   // Only update sensors if they are powered on
-  if (g_memory.power_state & 0x01) {
-    g_memory.sensor_a_reading = (uint8_t)rand();
+  if (g_memory.power_state & 0x01) { // Temperature sensor (Sensor A)
+    // Temperature varies slowly with some random fluctuation
+    // Values between 0 (freezing) and 255 (melting)
+    int temp_change = (rand() % 5) - 2; // -2 to +2 change
+
+    // Actuator C (heater) affects temperature
+    if (g_memory.actuator_c > 0 && (g_memory.power_state & 0x40)) {
+      // Heater increases temperature based on its setting (0-15)
+      temp_change += (g_memory.actuator_c / 2);
+    }
+
+    // Actuator B (fan) affects temperature if it's running
+    if (g_memory.actuator_b > 128 && (g_memory.power_state & 0x20)) {
+      // Fan decreases temperature if it's running fast
+      temp_change -= 1;
+    }
+
+    // Update base temperature with limits
+    temp_base = (uint8_t)((int)temp_base + temp_change);
+
+    // Set the actual reading with a small random variation
+    g_memory.sensor_a_reading = temp_base + (rand() % 3);
 
     // 1% chance to raise error
     if (rand() % 100 == 0) {
@@ -659,8 +595,28 @@ static void update_sensors() {
     }
   }
 
-  if (g_memory.power_state & 0x04) {
-    g_memory.sensor_b_reading = (uint8_t)rand();
+  if (g_memory.power_state & 0x04) { // Humidity sensor (Sensor B)
+    // Humidity varies slowly with some random fluctuation
+    // Values between 0 (dry) and 255 (monsoon)
+    int humid_change = (rand() % 5) - 2; // -2 to +2 change
+
+    // Actuator B (fan) affects humidity if it's running
+    if (g_memory.actuator_b > 128 && (g_memory.power_state & 0x20)) {
+      // Fan decreases humidity if it's running fast
+      humid_change -= 1;
+    }
+
+    // Actuator C (heater) affects humidity
+    if (g_memory.actuator_c > 0 && (g_memory.power_state & 0x40)) {
+      // Heater decreases humidity based on its setting (0-15)
+      humid_change -= (g_memory.actuator_c / 3);
+    }
+
+    // Update base humidity with limits
+    humid_base = (uint8_t)((int)humid_base + humid_change);
+
+    // Set the actual reading with a small random variation
+    g_memory.sensor_b_reading = humid_base + (rand() % 3);
 
     // 1% chance to raise error
     if (rand() % 100 == 0) {
