@@ -385,3 +385,45 @@ class Driver:
             self.dll.driver_power_actuators.restype = c_bool
 
         return self.dll.driver_power_actuators(led_on, fan_on, heater_on, doors_on)
+
+    def send_raw_command(self, command):
+        """Send a raw command to the device.
+
+        Args:
+            command: Command string (6 hex digits)
+
+        Returns:
+            str: Response from the device, or None if failed
+        """
+        if not self.connected:
+            self._log("Driver is not connected")
+            return None
+
+        if not self.dll:
+            self._log("DLL not loaded")
+            return None
+
+        # Validate command format
+        if not command or len(command) != 6:
+            self._log(f"Invalid command format: {command}")
+            return None
+
+        # Define function prototype if not already defined
+        if not hasattr(self.dll, "driver_send_command"):
+            self.dll.driver_send_command.argtypes = [c_char_p, c_char_p]
+            self.dll.driver_send_command.restype = c_bool
+
+        # Prepare buffers
+        command_bytes = command.encode("utf-8")
+        response_buffer = ctypes.create_string_buffer(
+            7
+        )  # 6 hex digits + null terminator
+
+        # Send command
+        result = self.dll.driver_send_command(command_bytes, response_buffer)
+        if not result:
+            self._log(f"Failed to send command: {command}")
+            return None
+
+        # Return response as string
+        return response_buffer.value.decode("utf-8")
