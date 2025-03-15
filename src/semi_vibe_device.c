@@ -57,9 +57,9 @@ EXPORT bool device_init(LogCallback log_callback) {
   g_memory.sensor_a_id = 0xA1; // Temperature sensor ID
   g_memory.sensor_b_id = 0xB2; // Humidity sensor ID
 
-  // Set initial sensor readings
-  g_memory.sensor_a_reading = (uint8_t)rand();
-  g_memory.sensor_b_reading = (uint8_t)rand();
+  // Set fixed initial sensor readings for testing
+  g_memory.sensor_a_reading = 25; // Default temperature value
+  g_memory.sensor_b_reading = 50; // Default humidity value
 
   // Set power control registers
   g_memory.power_sensors = 0x11;   // Both sensors powered on
@@ -541,65 +541,10 @@ static void log_message(const char *format, ...) {
 }
 
 static void update_sensors() {
-  static uint8_t temp_base = 128;  // Base temperature (middle range)
-  static uint8_t humid_base = 128; // Base humidity (middle range)
+  // This function is now a no-op since we want fixed values for testing
+  // The sensor values are set during initialization and can be modified
+  // through the Python API directly
 
-  // Only update sensors if they are powered on
-  if (g_memory.power_state & 0x01) { // Temperature sensor (Sensor A)
-    // Temperature varies slowly with some random fluctuation
-    // Values between 0 (freezing) and 255 (melting)
-    int temp_change = (rand() % 5) - 2; // -2 to +2 change
-
-    // Actuator C (heater) affects temperature
-    if (g_memory.actuator_c > 0 && (g_memory.power_state & 0x40)) {
-      // Heater increases temperature based on its setting (0-15)
-      temp_change += (g_memory.actuator_c / 2);
-    }
-
-    // Actuator B (fan) affects temperature if it's running
-    if (g_memory.actuator_b > 128 && (g_memory.power_state & 0x20)) {
-      // Fan decreases temperature if it's running fast
-      temp_change -= 1;
-    }
-
-    // Update base temperature with limits
-    temp_base = (uint8_t)((int)temp_base + temp_change);
-
-    // Set the actual reading with a small random variation
-    g_memory.sensor_a_reading = temp_base + (rand() % 3);
-
-    // 1% chance to raise error
-    if (rand() % 100 == 0) {
-      g_memory.error_state |= 0x01;
-    }
-  }
-
-  if (g_memory.power_state & 0x04) { // Humidity sensor (Sensor B)
-    // Humidity varies slowly with some random fluctuation
-    // Values between 0 (dry) and 255 (monsoon)
-    int humid_change = (rand() % 5) - 2; // -2 to +2 change
-
-    // Actuator B (fan) affects humidity if it's running
-    if (g_memory.actuator_b > 128 && (g_memory.power_state & 0x20)) {
-      // Fan decreases humidity if it's running fast
-      humid_change -= 1;
-    }
-
-    // Actuator C (heater) affects humidity
-    if (g_memory.actuator_c > 0 && (g_memory.power_state & 0x40)) {
-      // Heater decreases humidity based on its setting (0-15)
-      humid_change -= (g_memory.actuator_c / 3);
-    }
-
-    // Update base humidity with limits
-    humid_base = (uint8_t)((int)humid_base + humid_change);
-
-    // Set the actual reading with a small random variation
-    g_memory.sensor_b_reading = humid_base + (rand() % 3);
-
-    // 1% chance to raise error
-    if (rand() % 100 == 0) {
-      g_memory.error_state |= 0x04;
-    }
-  }
+  // No random updates or error generation
+  return;
 }
