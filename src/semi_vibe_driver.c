@@ -270,6 +270,34 @@ EXPORT bool driver_get_sensors(SensorData *data) {
 }
 
 /**
+ * @brief Get humidity value
+ *
+ * @param value Pointer to store the humidity value (0-100)
+ * @return true if value was retrieved successfully
+ */
+EXPORT bool driver_get_humidity(uint8_t *value) {
+  if (!g_driver.connected || !value) {
+    return false;
+  }
+
+  return read_register(BASE_SENSOR, OFFSET_HUMID_VALUE, value);
+}
+
+/**
+ * @brief Get temperature value
+ *
+ * @param value Pointer to store the temperature value (0-255)
+ * @return true if value was retrieved successfully
+ */
+EXPORT bool driver_get_temperature(uint8_t *value) {
+  if (!g_driver.connected || !value) {
+    return false;
+  }
+
+  return read_register(BASE_SENSOR, OFFSET_TEMP_VALUE, value);
+}
+
+/**
  * @brief Get actuator data
  *
  * @param data Pointer to ActuatorData structure to be filled
@@ -307,6 +335,20 @@ EXPORT bool driver_set_led(uint8_t value) { return write_register(BASE_ACTUATOR,
 EXPORT bool driver_set_fan(uint8_t value) { return write_register(BASE_ACTUATOR, OFFSET_FAN, value); }
 
 /**
+ * @brief Get fan value
+ *
+ * @param value Pointer to store the fan speed (0-255)
+ * @return true if value was retrieved successfully
+ */
+EXPORT bool driver_get_fan(uint8_t *value) {
+  if (!g_driver.connected || !value) {
+    return false;
+  }
+
+  return read_register(BASE_ACTUATOR, OFFSET_FAN, value);
+}
+
+/**
  * @brief Set heater value
  *
  * @param value Heater level (0-15, only lower 4 bits used)
@@ -318,14 +360,111 @@ EXPORT bool driver_set_heater(uint8_t value) {
 }
 
 /**
- * @brief Set doors value
+ * @brief Get heater value
  *
- * @param value Door states (bits 0,2,4,6 control doors 1-4)
- * @return true if value was set successfully
+ * @param value Pointer to store the heater level (0-15)
+ * @return true if value was retrieved successfully
  */
-EXPORT bool driver_set_doors(uint8_t value) {
-  // Doors only use bits 0, 2, 4, 6
-  return write_register(BASE_ACTUATOR, OFFSET_DOORS, value & MASK_DOORS_VALUE);
+EXPORT bool driver_get_heater(uint8_t *value) {
+  if (!g_driver.connected || !value) {
+    return false;
+  }
+
+  uint8_t raw_value;
+  if (!read_register(BASE_ACTUATOR, OFFSET_HEATER, &raw_value)) {
+    return false;
+  }
+
+  // Ensure only the lower 4 bits are returned (0-15)
+  *value = raw_value & MASK_HEATER_VALUE;
+  return true;
+}
+
+/**
+ * @brief Set the state of a specific door
+ *
+ * @param door_id Door identifier (DOOR_1, DOOR_2, DOOR_3, or DOOR_4)
+ * @param state Door state (DOOR_OPEN or DOOR_CLOSED)
+ * @return true if successful, false otherwise
+ */
+EXPORT bool driver_set_door(int door_id, int state) {
+  if (!g_driver.connected || door_id < DOOR_1 || door_id > DOOR_4 || (state != DOOR_OPEN && state != DOOR_CLOSED)) {
+    return false;
+  }
+
+  /* IMPORTANT: This function intentionally uses a read-modify-write approach for functional safety.
+   *
+   * 1. We first read the current door register value to ensure we have the most up-to-date state.
+   *    This is critical for functional safety elements like doors where multiple clients might
+   *    control the same device simultaneously.
+   *
+   * 2. We then modify only the specific door bit while preserving the state of other doors.
+   *
+   * 3. Finally, we write the new value back to the register.
+   *
+   * While this approach generates more messages (2 per door operation), it ensures:
+   * - We always operate on the current state of the hardware
+   * - We don't inadvertently change the state of other doors
+   * - We avoid race conditions and synchronization issues that could occur with cached values
+   *
+   * For functional safety elements like doors, this additional communication overhead
+   * is an acceptable trade-off for increased reliability and safety.
+   */
+  uint8_t current_value;
+  if (!read_register(BASE_ACTUATOR, OFFSET_DOORS, &current_value)) {
+    return false;
+  }
+
+  // Calculate bit position (DOOR_1->0, DOOR_2->2, DOOR_3->4, DOOR_4->6)
+  int bit_position = (door_id - 1) * 2;
+
+  // Set or clear the bit based on state
+  uint8_t new_value;
+  if (state == DOOR_OPEN) {
+    new_value = current_value | (1 << bit_position); // Set bit
+  } else {
+    new_value = current_value & ~(1 << bit_position); // Clear bit
+  }
+
+  // Write the new value (ensuring only valid bits are set)
+  return write_register(BASE_ACTUATOR, OFFSET_DOORS, new_value & MASK_DOORS_VALUE);
+}
+
+/**
+ * @brief Get the state of a specific door
+ *
+ * @param door_id Door identifier (DOOR_1, DOOR_2, DOOR_3, or DOOR_4)
+ * @param state Pointer to store the door state (DOOR_OPEN or DOOR_CLOSED)
+ * @return true if successful, false otherwise
+ */
+EXPORT bool driver_get_door_state(int door_id, int *state) {
+  if (!g_driver.connected || door_id < DOOR_1 || door_id > DOOR_4 || state == NULL) {
+    return false;
+  }
+
+  /* IMPORTANT: This function always reads the current door state directly from the hardware.
+   *
+   * For functional safety elements like doors, it's critical to always have the most up-to-date
+   * state from the hardware rather than relying on cached values. This ensures:
+   * - We always report the actual state of the hardware
+   * - We detect any changes made by other clients or external factors
+   * - We avoid potential safety issues that could arise from stale or incorrect state information
+   *
+   * While this generates an additional message for each door state query, the safety
+   * benefits outweigh the communication overhead.
+   */
+  uint8_t current_value;
+  if (!read_register(BASE_ACTUATOR, OFFSET_DOORS, &current_value)) {
+    return false;
+  }
+
+  // Calculate bit position (DOOR_1->0, DOOR_2->2, DOOR_3->4, DOOR_4->6)
+  int bit_position = (door_id - 1) * 2;
+
+  // Check if the bit is set
+  *state = (current_value & (1 << bit_position)) ? DOOR_OPEN : DOOR_CLOSED;
+
+  return true;
 }
 
 /**

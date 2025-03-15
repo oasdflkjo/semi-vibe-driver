@@ -10,6 +10,16 @@ from ctypes import c_bool, c_char_p, c_uint8, c_int, CFUNCTYPE, Structure, POINT
 # Define the callback function type
 LOGCALLBACK = CFUNCTYPE(None, c_char_p)
 
+# Door identifiers
+DOOR_1 = 1
+DOOR_2 = 2
+DOOR_3 = 3
+DOOR_4 = 4
+
+# Door states
+DOOR_CLOSED = 0
+DOOR_OPEN = 1
+
 
 # Define the structures to match the C structures
 class SensorData(Structure):
@@ -76,6 +86,12 @@ class DriverDLL:
         self.dll.driver_get_sensors.argtypes = [POINTER(SensorData)]
         self.dll.driver_get_sensors.restype = c_bool
 
+        self.dll.driver_get_humidity.argtypes = [POINTER(c_uint8)]
+        self.dll.driver_get_humidity.restype = c_bool
+
+        self.dll.driver_get_temperature.argtypes = [POINTER(c_uint8)]
+        self.dll.driver_get_temperature.restype = c_bool
+
         self.dll.driver_get_actuators.argtypes = [POINTER(ActuatorData)]
         self.dll.driver_get_actuators.restype = c_bool
 
@@ -85,11 +101,20 @@ class DriverDLL:
         self.dll.driver_set_fan.argtypes = [c_uint8]
         self.dll.driver_set_fan.restype = c_bool
 
+        self.dll.driver_get_fan.argtypes = [POINTER(c_uint8)]
+        self.dll.driver_get_fan.restype = c_bool
+
         self.dll.driver_set_heater.argtypes = [c_uint8]
         self.dll.driver_set_heater.restype = c_bool
 
-        self.dll.driver_set_doors.argtypes = [c_uint8]
-        self.dll.driver_set_doors.restype = c_bool
+        self.dll.driver_get_heater.argtypes = [POINTER(c_uint8)]
+        self.dll.driver_get_heater.restype = c_bool
+
+        self.dll.driver_set_door.argtypes = [c_int, c_int]
+        self.dll.driver_set_door.restype = c_bool
+
+        self.dll.driver_get_door_state.argtypes = [c_int, POINTER(c_int)]
+        self.dll.driver_get_door_state.restype = c_bool
 
         self.dll.driver_power_sensors.argtypes = [c_bool, c_bool]
         self.dll.driver_power_sensors.restype = c_bool
@@ -161,6 +186,28 @@ class DriverDLL:
         """
         return self.dll.driver_get_sensors(ctypes.byref(data))
 
+    def get_humidity(self):
+        """Get humidity value.
+
+        Returns:
+            int: Humidity value (0-100) or None if failed
+        """
+        value = c_uint8()
+        if self.dll.driver_get_humidity(ctypes.byref(value)):
+            return value.value
+        return None
+
+    def get_temperature(self):
+        """Get temperature value.
+
+        Returns:
+            int: Temperature value (0-100) or None if failed
+        """
+        value = c_uint8()
+        if self.dll.driver_get_temperature(ctypes.byref(value)):
+            return value.value
+        return None
+
     def get_actuators(self, data):
         """Get actuator data.
 
@@ -194,6 +241,17 @@ class DriverDLL:
         """
         return self.dll.driver_set_fan(value)
 
+    def get_fan(self):
+        """Get fan value.
+
+        Returns:
+            int: Fan speed (0-255) or None if failed
+        """
+        value = c_uint8()
+        if self.dll.driver_get_fan(ctypes.byref(value)):
+            return value.value
+        return None
+
     def set_heater(self, value):
         """Set heater value.
 
@@ -205,16 +263,42 @@ class DriverDLL:
         """
         return self.dll.driver_set_heater(value)
 
-    def set_doors(self, value):
-        """Set doors value.
+    def get_heater(self):
+        """Get heater value.
+
+        Returns:
+            int: Heater value (0-15) or None if failed
+        """
+        value = c_uint8()
+        if self.dll.driver_get_heater(ctypes.byref(value)):
+            return value.value
+        return None
+
+    def set_door(self, door_id, state):
+        """Set the state of a specific door.
 
         Args:
-            value: Value to set (bit 0, 2, 4, 6 control individual doors)
+            door_id: Door identifier (DOOR_1, DOOR_2, DOOR_3, or DOOR_4)
+            state: Door state (DOOR_OPEN or DOOR_CLOSED)
 
         Returns:
             bool: True if successful
         """
-        return self.dll.driver_set_doors(value)
+        return self.dll.driver_set_door(door_id, state)
+
+    def get_door_state(self, door_id):
+        """Get the state of a specific door.
+
+        Args:
+            door_id: Door identifier (DOOR_1, DOOR_2, DOOR_3, or DOOR_4)
+
+        Returns:
+            int: Door state (DOOR_OPEN or DOOR_CLOSED) or None if failed
+        """
+        state = c_int()
+        if self.dll.driver_get_door_state(door_id, ctypes.byref(state)):
+            return state.value
+        return None
 
     def power_sensors(self, temperature_on, humidity_on):
         """Power sensors on/off.

@@ -19,6 +19,16 @@ extern "C" {
 #define EXPORT
 #endif
 
+// Door identifiers
+#define DOOR_1 1
+#define DOOR_2 2
+#define DOOR_3 3
+#define DOOR_4 4
+
+// Door states
+#define DOOR_CLOSED 0
+#define DOOR_OPEN 1
+
 // Callback function type for driver logging
 typedef void (*LogCallback)(const char *message);
 
@@ -82,6 +92,20 @@ EXPORT bool driver_get_status(DeviceStatus *status);
 EXPORT bool driver_get_sensors(SensorData *data);
 
 /**
+ * @brief Get humidity value
+ * @param value Pointer to store the humidity value (0-100)
+ * @return true if successful, false otherwise
+ */
+EXPORT bool driver_get_humidity(uint8_t *value);
+
+/**
+ * @brief Get temperature value
+ * @param value Pointer to store the temperature value (0-255)
+ * @return true if successful, false otherwise
+ */
+EXPORT bool driver_get_temperature(uint8_t *value);
+
+/**
  * @brief Get actuator data
  * @param data Pointer to actuator data structure to fill
  * @return true if successful, false otherwise
@@ -103,6 +127,13 @@ EXPORT bool driver_set_led(uint8_t value);
 EXPORT bool driver_set_fan(uint8_t value);
 
 /**
+ * @brief Get fan value
+ * @param value Pointer to store the fan speed (0-255)
+ * @return true if successful, false otherwise
+ */
+EXPORT bool driver_get_fan(uint8_t *value);
+
+/**
  * @brief Set heater value
  * @param value Value to set (0-15)
  * @return true if successful, false otherwise
@@ -110,11 +141,27 @@ EXPORT bool driver_set_fan(uint8_t value);
 EXPORT bool driver_set_heater(uint8_t value);
 
 /**
- * @brief Set doors value
- * @param value Value to set (bit 0, 2, 4, 6 control individual doors)
+ * @brief Get heater value
+ * @param value Pointer to store the heater level (0-15)
  * @return true if successful, false otherwise
  */
-EXPORT bool driver_set_doors(uint8_t value);
+EXPORT bool driver_get_heater(uint8_t *value);
+
+/**
+ * @brief Set the state of a specific door
+ * @param door_id Door identifier (DOOR_1, DOOR_2, DOOR_3, or DOOR_4)
+ * @param state Door state (DOOR_OPEN or DOOR_CLOSED)
+ * @return true if successful, false otherwise
+ */
+EXPORT bool driver_set_door(int door_id, int state);
+
+/**
+ * @brief Get the state of a specific door
+ * @param door_id Door identifier (DOOR_1, DOOR_2, DOOR_3, or DOOR_4)
+ * @param state Pointer to store the door state (DOOR_OPEN or DOOR_CLOSED)
+ * @return true if successful, false otherwise
+ */
+EXPORT bool driver_get_door_state(int door_id, int *state);
 
 /**
  * @brief Power on/off sensors
