@@ -1,0 +1,106 @@
+name: Create Release
+
+on:
+  push:
+    tags:
+      - 'v*'  # Push events to tags matching v*, i.e. v1.0, v20.15.10
+
+jobs:
+  build:
+    runs-on: windows-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.10'
+    
+    - name: Install CMake
+      uses: lukka/get-cmake@latest
+    
+    - name: Configure CMake
+      run: |
+        mkdir -p build
+        cd build
+        cmake -DCMAKE_BUILD_TYPE=Release ..
+      shell: pwsh
+    
+    - name: Build
+      run: |
+        cd build
+        cmake --build . --config Release
+      shell: pwsh
+    
+    - name: Check Build Output
+      run: |
+        ls -la build/bin/Release
+        if (-not (Test-Path "build/bin/Release/semi_vibe_device.dll")) {
+          Write-Error "Device DLL not found!"
+          exit 1
+        }
+        if (-not (Test-Path "build/bin/Release/semi_vibe_driver.dll")) {
+          Write-Error "Driver DLL not found!"
+          exit 1
+        }
+      shell: pwsh
+    
+    - name: Run Tests
+      run: |
+        # Temporarily copy Release DLLs to Debug location for tests
+        mkdir -p build/bin/Debug
+        cp build/bin/Release/*.dll build/bin/Debug/
+        python run_tests.py
+      shell: pwsh
+    
+    - name: Create Artifact Directory
+      run: |
+        mkdir -p artifacts/include
+        mkdir -p artifacts/lib
+        mkdir -p artifacts/bin
+      shell: pwsh
+    
+    - name: Copy Headers and DLLs to Artifact Directory
+      run: |
+        # Copy header files
+        cp include/*.h artifacts/include/
+        
+        # Copy DLLs
+        cp build/bin/Release/*.dll artifacts/bin/
+        
+        # Copy lib files if they exist
+        cp build/lib/Release/*.lib artifacts/lib/ || echo "No lib files found"
+      shell: pwsh
+    
+    - name: Create ZIP Archive
+      run: |
+        Compress-Archive -Path artifacts/* -DestinationPath semi-vibe-driver.zip
+      shell: pwsh
+    
+    - name: Get the version
+      id: get_version
+      run: echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+      shell: bash
+    
+    - name: Create Release
+      id: create_release
+      uses: actions/create-release@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        tag_name: ${{ github.ref }}
+        release_name: Release ${{ github.ref_name }}
+        draft: false
+        prerelease: false
+    
+    - name: Upload Release Asset
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        upload_url: ${{ steps.create_release.outputs.upload_url }}
+        asset_path: ./semi-vibe-driver.zip
+        asset_name: semi-vibe-driver-${{ github.ref_name }}.zip
+        asset_content_type: application/zip 

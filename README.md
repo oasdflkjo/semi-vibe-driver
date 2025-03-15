@@ -1,5 +1,8 @@
 # Semi-Vibe-Driver Project
 
+[![Build Status](https://github.com/username/semi-vibe-driver/actions/workflows/build-and-test.yml/badge.svg?branch=main&event=build-status)](https://github.com/username/semi-vibe-driver/actions/workflows/build-and-test.yml)
+[![Test Status](https://github.com/username/semi-vibe-driver/actions/workflows/build-and-test.yml/badge.svg?branch=main&event=test-status)](https://github.com/username/semi-vibe-driver/actions/workflows/build-and-test.yml)
+
 ## Project Overview
 
 The Semi-Vibe-Driver project is a driver development framework designed to simulate and test device drivers for embedded systems. This project demonstrates an architecture for driver development, with a focus on testability and iterative development using LLM-assisted coding techniques.
@@ -83,5 +86,41 @@ Altough the project goal was to create a driver for a imaginary device, the fram
 
 My current view on unit tests and integration tests in embedded systems is a bit wonky, i prefer much more integration tests over unit tests. 
 That way testing does not affect that acrchitectual decisions and at least reduces the amount of abstraction layers needed. Every codebase will have bugs and statistically having less code means less bugs.
+
+## CI/CD with GitHub Actions
+
+This project uses GitHub Actions for continuous integration and delivery:
+
+### Build and Test Workflow
+
+The [build-and-test.yml](.github/workflows/build-and-test.yml) workflow runs on every push to main branches and pull requests:
+
+- Builds the driver and device DLLs in a Windows environment
+- Runs the full test suite
+- Creates artifacts containing header files and DLLs
+- Updates status badges in the README
+
+### Release Workflow
+
+The [release.yml](.github/workflows/release.yml) workflow is triggered when a tag is pushed:
+
+- Builds the driver and device DLLs in Release mode
+- Runs the full test suite
+- Creates a ZIP archive with headers, DLLs, and library files
+- Creates a GitHub Release with the ZIP file attached
+
+### Creating a Release
+
+To create a new release:
+
+```bash
+# Tag the commit
+git tag v1.0.0
+
+# Push the tag to trigger the release workflow
+git push origin v1.0.0
+```
+
+The release will be automatically created with the built artifacts.
 
 

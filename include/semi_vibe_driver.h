@@ -185,6 +185,8 @@ EXPORT bool driver_get_error_state(int component_type, bool *has_error);
  * @param command Command string (6 hex digits)
  * @param response Buffer to store response (must be at least 7 bytes)
  * @return true if successful, false otherwise
+ *
+ * @note This function is not part of the official API and is only for testing purposes and should be dropped to null in production.
  */
 EXPORT bool driver_send_command(const char *command, char *response);
 

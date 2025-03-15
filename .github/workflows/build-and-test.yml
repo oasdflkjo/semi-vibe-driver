@@ -1,0 +1,95 @@
+name: Build and Test
+
+on:
+  push:
+    branches: [ main, master, develop ]
+  pull_request:
+    branches: [ main, master, develop ]
+  workflow_dispatch:  # Allow manual triggering
+
+jobs:
+  build-and-test:
+    runs-on: windows-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.10'
+    
+    - name: Install CMake
+      uses: lukka/get-cmake@latest
+    
+    - name: Configure CMake
+      run: |
+        mkdir -p build
+        cd build
+        cmake -DCMAKE_BUILD_TYPE=Debug ..
+      shell: pwsh
+    
+    - name: Build
+      run: |
+        cd build
+        cmake --build . --config Debug
+      shell: pwsh
+    
+    - name: Check Build Output
+      run: |
+        ls -la build/bin/Debug
+        if (-not (Test-Path "build/bin/Debug/semi_vibe_device.dll")) {
+          Write-Error "Device DLL not found!"
+          exit 1
+        }
+        if (-not (Test-Path "build/bin/Debug/semi_vibe_driver.dll")) {
+          Write-Error "Driver DLL not found!"
+          exit 1
+        }
+      shell: pwsh
+    
+    - name: Run Tests
+      run: |
+        python run_tests.py
+      shell: pwsh
+    
+    - name: Create Artifact Directory
+      run: |
+        mkdir -p artifacts/include
+        mkdir -p artifacts/lib
+        mkdir -p artifacts/bin
+      shell: pwsh
+    
+    - name: Copy Headers and DLLs to Artifact Directory
+      run: |
+        # Copy header files
+        cp include/*.h artifacts/include/
+        
+        # Copy DLLs
+        cp build/bin/Debug/*.dll artifacts/bin/
+        
+        # Copy lib files if they exist
+        cp build/lib/Debug/*.lib artifacts/lib/ || echo "No lib files found"
+      shell: pwsh
+    
+    - name: Upload Artifacts
+      uses: actions/upload-artifact@v3
+      with:
+        name: semi-vibe-driver-package
+        path: artifacts/
+        retention-days: 7
+
+  # This job is just for the build status badge
+  build-status:
+    needs: build-and-test
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "Build succeeded"
+
+  # This job is just for the test status badge
+  test-status:
+    needs: build-and-test
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "Tests passed" 
