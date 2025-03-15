@@ -24,6 +24,8 @@ def discover_test_modules():
             module_name = filename[:-3]  # Remove .py extension
             test_modules.append(module_name)
 
+    # Sort modules alphabetically for consistent execution order
+    test_modules.sort()
     return test_modules
 
 
@@ -32,38 +34,10 @@ def run_all_tests(driver, device=None):
     test_modules = discover_test_modules()
     print(f"\n=== Found {len(test_modules)} test modules ===")
 
-    # Define the order of test execution
-    ordered_modules = []
-
-    # Basic tests first
-    if "test_basic" in test_modules:
-        ordered_modules.append("test_basic")
-        test_modules.remove("test_basic")
-
-    # Sensor tests next
-    sensor_tests = [m for m in test_modules if "sensor" in m]
-    for module in sensor_tests:
-        ordered_modules.append(module)
-        test_modules.remove(module)
-
-    # Actuator tests last
-    actuator_tests = [
-        m
-        for m in test_modules
-        if m in ["test_led", "test_fan", "test_heater", "test_doors"]
-    ]
-    for module in actuator_tests:
-        ordered_modules.append(module)
-        if module in test_modules:
-            test_modules.remove(module)
-
-    # Add any remaining tests
-    ordered_modules.extend(test_modules)
-
     all_results = []
     all_passed = True
 
-    for module_name in ordered_modules:
+    for module_name in test_modules:
         try:
             # Import the module
             module = importlib.import_module(f"tests.{module_name}")
