@@ -13,6 +13,10 @@ import queue
 import ctypes
 import traceback
 
+# Add the tests directory to the path
+sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), "tests"))
+import test_utils
+
 
 def is_server_ready(host="localhost", port=8989, max_attempts=10):
     """Check if the server is ready to accept connections."""
@@ -31,18 +35,6 @@ def is_server_ready(host="localhost", port=8989, max_attempts=10):
 
     print(f"Server did not become ready after {max_attempts} attempts")
     return False
-
-
-def device_log_callback(message):
-    """Callback function for device logging."""
-    # Always print device logs during debugging
-    print(f"Device: {message.decode('utf-8')}")
-
-
-def driver_log_callback(message):
-    """Callback function for driver logging."""
-    # Always print driver logs during debugging
-    print(f"Driver: {message.decode('utf-8')}")
 
 
 def check_dll_exists(dll_path):
@@ -113,7 +105,7 @@ def initialize_device(device):
     """Initialize the device with error handling."""
     print("Initializing device...")
     try:
-        result = device.init(device_log_callback)
+        result = device.init(test_utils.device_log_callback)
         print(f"Device initialization result: {result}")
         return result
     except Exception as e:
@@ -152,7 +144,7 @@ def initialize_driver(driver):
     """Initialize the driver with error handling."""
     print("Initializing driver...")
     try:
-        result = driver.init(driver_log_callback)
+        result = driver.init(test_utils.driver_log_callback)
         print(f"Driver initialization result: {result}")
         return result
     except Exception as e:
@@ -219,6 +211,9 @@ def run_tests():
 
     print(f"Device DLL exists: {os.path.exists(device_dll_path)}")
     print(f"Driver DLL exists: {os.path.exists(driver_dll_path)}")
+
+    # Enable callback prints for setup
+    test_utils.enable_callback_prints()
 
     # Load the device DLL
     device = load_device_dll(device_dll_path)

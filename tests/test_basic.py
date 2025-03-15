@@ -7,16 +7,15 @@ import ctypes
 import sys
 import os
 
+## quick fix to disable print statements
+## def print(string):
+##    return
+
 # Add the python directory to the path
 sys.path.append(
     os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "python")
 )
 from utils import get_driver_status, get_driver_actuators, set_led
-
-
-## quick fix to disable print statements
-def print(string):
-    return
 
 
 def test_connection(driver):
