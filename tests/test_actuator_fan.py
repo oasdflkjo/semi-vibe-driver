@@ -206,20 +206,68 @@ def test_fan_range(driver):
     return all_passed
 
 
+def test_fan_get_set(driver):
+    """Test getting and setting fan values."""
+    test_utils.print_func("\n=== Testing Fan Get/Set ===")
+
+    # Test setting and getting fan values
+    test_values = [0, 1, 127, 128, 254, 255]
+    all_passed = True
+
+    for value in test_values:
+        # Set fan value
+        if not driver.set_fan(value):
+            test_utils.print_func(f"❌ Failed to set fan to {value}")
+            all_passed = False
+            continue
+
+        # Get fan value
+        actual_value = driver.get_fan()
+        if actual_value is None:
+            test_utils.print_func(f"❌ Failed to get fan value")
+            all_passed = False
+            continue
+
+        # Verify value
+        if actual_value != value:
+            test_utils.print_func(
+                f"❌ Fan value mismatch: expected {value}, got {actual_value}"
+            )
+            all_passed = False
+            continue
+
+        test_utils.print_func(f"✅ Verified fan value {value}")
+
+    if all_passed:
+        test_utils.print_func("✅ Fan get/set test passed")
+    else:
+        test_utils.print_func("❌ Fan get/set test failed")
+
+    return all_passed
+
+
 def run_tests(driver, device=None):
     """Run all fan tests."""
     # When running as part of the test suite, disable print
     test_utils.set_print_disabled()
 
-    # Run fan range test using direct commands for cleaner output
-    result = test_fan_range_direct(driver)
+    results = []
+
+    # Run fan control test
+    results.append(("Fan Range Direct", test_fan_range_direct(driver)))
+
+    # Run fan get/set test
+    results.append(("Fan Get/Set", test_fan_get_set(driver)))
 
     # Print summary
     test_utils.print_func("\n=== Fan Tests Summary ===")
-    status = "✅ PASSED" if result else "❌ FAILED"
-    test_utils.print_func(f"Fan Range Control: {status}")
+    all_passed = True
+    for name, result in results:
+        status = "✅ PASSED" if result else "❌ FAILED"
+        test_utils.print_func(f"{name}: {status}")
+        all_passed = all_passed and result
 
-    return result
+    return all_passed
 
 
 def main():
