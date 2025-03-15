@@ -63,36 +63,25 @@ The communication between the driver and device uses a custom protocol defined i
 
 - Uses a register-based approach with base addresses and offsets
 - Supports read and write operations
-- Includes error handling mechanisms
-- Enables control of various device components
+- Enables control and monitoring of various device components
 
 ## Development Methodology
 
 This project was developed using an LLM-assisted approach with Claude 3.7.
 
-The architecture was specifically designed to allow an LLM to edit and improve the code while maintaining a stable testing environment. This approach enables:
+The architecture was specifically selected to allow an LLM to edit and improve the code while maintaining a stable testing environment. This approach enables:
 
 - Rapid prototyping
 - Continuous validation against integration tests
-- Focused improvements to specific components
 - Maintaining overall system stability during development
-
-## Key Features
-
-- **Simulated Hardware**: Complete simulation of a device with sensors and actuators
-- **Protocol-Based Communication**: Well-defined communication protocol
-- **Comprehensive Testing**: Extensive test suite covering various scenarios
-- **Cross-Language Integration**: Seamless integration between C and Python
-- **Error Handling**: Robust error detection and reporting
-- **Modular Design**: Clear separation of concerns between components
 
 ## Conclusion
 
-The Semi-Vibe-Driver project demonstrates a approach to driver development that leverages layered architecture, comprehensive testing, and LLM-assisted coding. This methodology enables rapid development while maintaining high quality and testability, making it an template framework for similar embedded systems projects.
+The Semi-Vibe-Driver project demonstrates a approach to driver development that leverages comprehensive testing and LLM-assisted coding. This methodology enables rapid development, making it an template framework for similar embedded systems projects.
 
 Altough the project goal was to create a driver for a imaginary device, the framework that was used is more valuable that the specific implementation of the driver. 
 
 My current view on unit tests and integration tests in embedded systems is a bit wonky, i prefer much more integration tests over unit tests. 
-That way testing does not affect that acrchitectual decisions and atleas reduces the amount of abstraction layers needed. Every codebase will have bugs and statistically having less code means less bugs.
+That way testing does not affect that acrchitectual decisions and at least reduces the amount of abstraction layers needed. Every codebase will have bugs and statistically having less code means less bugs.
 
 
