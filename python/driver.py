@@ -100,6 +100,12 @@ class Driver:
             self.dll.driver_set_doors.argtypes = [c_uint8]
             self.dll.driver_set_doors.restype = c_bool
 
+            self.dll.driver_power_sensors.argtypes = [c_bool, c_bool]
+            self.dll.driver_power_sensors.restype = c_bool
+
+            self.dll.driver_power_actuators.argtypes = [c_bool, c_bool, c_bool, c_bool]
+            self.dll.driver_power_actuators.restype = c_bool
+
             # Create log callback
             def log_callback_wrapper(message):
                 self.print_callback(f"[DRIVER] {message.decode('utf-8')}")
@@ -285,3 +291,55 @@ class Driver:
             return False
 
         return self.dll.driver_set_doors(value)
+
+    def power_sensors(self, temperature_on, humidity_on):
+        """Power sensors on/off.
+
+        Args:
+            temperature_on: Whether temperature sensor should be powered
+            humidity_on: Whether humidity sensor should be powered
+
+        Returns:
+            bool: True if successful
+        """
+        if not self.connected:
+            self._log("Driver is not connected")
+            return False
+
+        if not self.dll:
+            self._log("DLL not loaded")
+            return False
+
+        # Define function prototype if not already defined
+        if not hasattr(self.dll, "driver_power_sensors"):
+            self.dll.driver_power_sensors.argtypes = [c_bool, c_bool]
+            self.dll.driver_power_sensors.restype = c_bool
+
+        return self.dll.driver_power_sensors(temperature_on, humidity_on)
+
+    def power_actuators(self, led_on, fan_on, heater_on, doors_on):
+        """Power actuators on/off.
+
+        Args:
+            led_on: Whether LED should be powered
+            fan_on: Whether fan should be powered
+            heater_on: Whether heater should be powered
+            doors_on: Whether doors should be powered
+
+        Returns:
+            bool: True if successful
+        """
+        if not self.connected:
+            self._log("Driver is not connected")
+            return False
+
+        if not self.dll:
+            self._log("DLL not loaded")
+            return False
+
+        # Define function prototype if not already defined
+        if not hasattr(self.dll, "driver_power_actuators"):
+            self.dll.driver_power_actuators.argtypes = [c_bool, c_bool, c_bool, c_bool]
+            self.dll.driver_power_actuators.restype = c_bool
+
+        return self.dll.driver_power_actuators(led_on, fan_on, heater_on, doors_on)
