@@ -271,6 +271,56 @@ def test_error_state(driver, device):
     return all_passed
 
 
+def test_reset_component(driver, device):
+    """Test resetting individual components."""
+    test_utils.print_func("\n=== Testing Reset Component ===")
+
+    # Test all components
+    components = [
+        ("Temperature", COMPONENT_TEMPERATURE),
+        ("Humidity", COMPONENT_HUMIDITY),
+        ("LED", COMPONENT_LED),
+        ("Fan", COMPONENT_FAN),
+        ("Heater", COMPONENT_HEATER),
+        ("Doors", COMPONENT_DOORS),
+    ]
+
+    all_passed = True
+
+    # Test resetting each component individually
+    for name, component_type in components:
+        test_utils.print_func(f"Resetting {name}...")
+        if not driver.reset_component(component_type):
+            test_utils.print_func(f"❌ Failed to reset {name}")
+            all_passed = False
+            continue
+
+        test_utils.print_func(f"✅ {name} reset successfully")
+
+    # Test resetting all sensors at once
+    test_utils.print_func("\nTesting reset_sensors function...")
+    if not driver.reset_sensors(True, True):
+        test_utils.print_func("❌ Failed to reset all sensors")
+        all_passed = False
+    else:
+        test_utils.print_func("✅ All sensors reset successfully")
+
+    # Test resetting all actuators at once
+    test_utils.print_func("\nTesting reset_actuators function...")
+    if not driver.reset_actuators(True, True, True, True):
+        test_utils.print_func("❌ Failed to reset all actuators")
+        all_passed = False
+    else:
+        test_utils.print_func("✅ All actuators reset successfully")
+
+    if all_passed:
+        test_utils.print_func("✅ Reset component test passed")
+    else:
+        test_utils.print_func("❌ Reset component test failed")
+
+    return all_passed
+
+
 def run_tests(driver, device):
     """Run all component status tests."""
     # When running as part of the test suite, disable print
@@ -283,6 +333,9 @@ def run_tests(driver, device):
 
     # Run error state test
     results.append(("Error State", test_error_state(driver, device)))
+
+    # Run reset component test
+    results.append(("Reset Component", test_reset_component(driver, device)))
 
     # Print summary
     test_utils.print_func("\n=== Component Status Tests Summary ===")
@@ -308,11 +361,12 @@ def main():
         # Run the tests
         test_utils.print_func("\n=== Running Component Status Tests ===")
 
-        # Run both tests
+        # Run all tests
         power_test_result = test_power_state(driver, device)
         error_test_result = test_error_state(driver, device)
+        reset_test_result = test_reset_component(driver, device)
 
-        success = power_test_result and error_test_result
+        success = power_test_result and error_test_result and reset_test_result
 
         # Print overall result
         if success:

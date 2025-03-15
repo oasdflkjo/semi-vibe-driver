@@ -232,6 +232,13 @@ EXPORT bool driver_send_command(const char *command, char *response);
  */
 EXPORT bool driver_set_power_state(int component_type, bool powered);
 
+/**
+ * @brief Reset a specific component
+ * @param component_type Type of component (0=TEMPERATURE, 1=HUMIDITY, 2=LED, 3=FAN, 4=HEATER, 5=DOORS)
+ * @return true if successful, false otherwise
+ */
+EXPORT bool driver_reset_component(int component_type);
+
 #ifdef __cplusplus
 }
 #endif

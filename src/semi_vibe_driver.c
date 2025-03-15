@@ -852,3 +852,85 @@ EXPORT bool driver_set_power_state(int component_type, bool powered) {
     return driver_power_actuators(led_on, fan_on, heater_on, doors_on);
   }
 }
+
+/**
+ * @brief Reset a specific component
+ *
+ * @param component_type Type of component (0=TEMPERATURE, 1=HUMIDITY, 2=LED, 3=FAN, 4=HEATER, 5=DOORS)
+ * @return true if successful, false otherwise
+ */
+EXPORT bool driver_reset_component(int component_type) {
+  if (!g_driver.connected || component_type < COMPONENT_TEMPERATURE || component_type > COMPONENT_DOORS) {
+    return false;
+  }
+
+  // For sensors
+  if (component_type == COMPONENT_TEMPERATURE || component_type == COMPONENT_HUMIDITY) {
+    // Read current reset state to preserve the other sensor's state
+    uint8_t current_reset_state = 0;
+    if (!read_register(BASE_CONTROL, OFFSET_RESET_SENSORS, &current_reset_state)) {
+      return false;
+    }
+
+    bool reset_temperature = (current_reset_state & MASK_TEMP_SENSOR) != 0;
+    bool reset_humidity = (current_reset_state & MASK_HUMID_SENSOR) != 0;
+
+    // Update the requested component's state
+    if (component_type == COMPONENT_TEMPERATURE) {
+      reset_temperature = true;
+      reset_humidity = false;
+    } else { // COMPONENT_HUMIDITY
+      reset_temperature = false;
+      reset_humidity = true;
+    }
+
+    // Set the reset state
+    return driver_reset_sensors(reset_temperature, reset_humidity);
+  }
+  // For actuators
+  else {
+    // Read current reset state to preserve other actuators' states
+    uint8_t current_reset_state = 0;
+    if (!read_register(BASE_CONTROL, OFFSET_RESET_ACTUATORS, &current_reset_state)) {
+      return false;
+    }
+
+    bool reset_led = (current_reset_state & MASK_LED) != 0;
+    bool reset_fan = (current_reset_state & MASK_FAN) != 0;
+    bool reset_heater = (current_reset_state & MASK_HEATER) != 0;
+    bool reset_doors = (current_reset_state & MASK_DOORS) != 0;
+
+    // Update the requested component's state
+    switch (component_type) {
+    case COMPONENT_LED:
+      reset_led = true;
+      reset_fan = false;
+      reset_heater = false;
+      reset_doors = false;
+      break;
+    case COMPONENT_FAN:
+      reset_led = false;
+      reset_fan = true;
+      reset_heater = false;
+      reset_doors = false;
+      break;
+    case COMPONENT_HEATER:
+      reset_led = false;
+      reset_fan = false;
+      reset_heater = true;
+      reset_doors = false;
+      break;
+    case COMPONENT_DOORS:
+      reset_led = false;
+      reset_fan = false;
+      reset_heater = false;
+      reset_doors = true;
+      break;
+    default:
+      return false;
+    }
+
+    // Set the reset state
+    return driver_reset_actuators(reset_led, reset_fan, reset_heater, reset_doors);
+  }
+}

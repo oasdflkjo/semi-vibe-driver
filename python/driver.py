@@ -142,6 +142,9 @@ class DriverDLL:
         self.dll.driver_set_power_state.argtypes = [c_int, c_bool]
         self.dll.driver_set_power_state.restype = c_bool
 
+        self.dll.driver_reset_component.argtypes = [c_int]
+        self.dll.driver_reset_component.restype = c_bool
+
         self.dll.driver_send_command.argtypes = [c_char_p, c_char_p]
         self.dll.driver_send_command.restype = c_bool
 
@@ -396,6 +399,17 @@ class DriverDLL:
             bool: True if successful
         """
         return self.dll.driver_set_power_state(component_type, powered)
+
+    def reset_component(self, component_type):
+        """Reset a specific component.
+
+        Args:
+            component_type: Component type (COMPONENT_TEMPERATURE, COMPONENT_HUMIDITY, etc.)
+
+        Returns:
+            bool: True if successful
+        """
+        return self.dll.driver_reset_component(component_type)
 
     def send_command(self, command, response_buffer):
         """Send a raw command to the device.
