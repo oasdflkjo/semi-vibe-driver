@@ -1,224 +1,98 @@
-# Semi-Vibe-Device Project
-
-A minimalist implementation of a device driver and simulator with a focus on simplicity and understandability.
-
-## Project Structure
-
-The project is organized into the following components:
-
-```
-.
-├── python/                 # Python implementation
-│   ├── driver.py           # Driver interface
-│   ├── device.py           # Simulated device
-│   ├── server.py           # Device server
-│   ├── run_server.py       # Script to run the device server directly
-│   └── run_driver.py       # Script to test the driver directly
-│
-├── tests/                  # Testing framework
-│   ├── test_runner.py      # Test discovery and execution
-│   ├── test_basic.py       # Basic connectivity tests
-│   ├── test_sensors.py     # Sensor functionality tests
-│   ├── test_actuators.py   # Actuator functionality tests
-│   └── README.md           # Testing documentation
-│
-└── run.py                  # Main entry point for testing
-```
-
-## Design Philosophy
-
-This project follows a minimalist design philosophy:
-
-1. **Simplicity**: Keep the code simple and easy to understand
-2. **Transparency**: Make communication between components visible
-3. **Testability**: Design components to be easily testable
-4. **Modularity**: Keep components loosely coupled
-
-## Components
-
-### Driver Interface
-
-The driver interface provides a simple API to communicate with the device. It:
-
-- Sends commands to the device via sockets
-- Receives and parses responses
-- Provides a clean API for applications
-- Logs all communication for debugging
-
-### Simulated Device
-
-The simulated device implements the device protocol and:
-
-- Listens for commands on a socket
-- Maintains internal state
-- Responds to commands according to the protocol
-- Logs all communication for debugging
-- Provides direct access methods for testing
-
-### Testing Framework
-
-The testing framework verifies the functionality of the driver and device:
-
-- Runs tests for all components
-- Verifies communication between driver and device
-- Tests both socket communication and direct access
-- Provides detailed logs for debugging
-
-## Running the Project
-
-### Running the Full Test Suite
-
-```bash
-python run.py
-```
-
-This will:
-1. Start the simulated device
-2. Initialize the driver
-3. Run all tests
-4. Clean up and shut down
-
-### Running the Device Server Separately
-
-```bash
-python python/run_server.py
-```
-
-### Testing the Driver Against a Running Server
-
-```bash
-python python/run_driver.py
-```
-
-## Debugging
-
-Both the driver and device log all sent and received messages, making it easy to debug communication issues. Look for lines with `[DRIVER]` and `[DEVICE]` prefixes in the output.
+# Semi-Vibe-Driver Project
 
 ## Project Overview
 
-This project simulates a fictional device called Semi-Vibe-Device with sensors and actuators. It consists of two main components:
+The Semi-Vibe-Driver project is a driver development framework designed to simulate and test device drivers for embedded systems. This project demonstrates an architecture for driver development, with a focus on testability and iterative development using LLM-assisted coding techniques.
 
-1. **Device Simulator**: Simulates the physical device with sensors and actuators
-2. **Driver**: Provides a high-level API to interact with the device
+## Architecture
 
-The project is designed to be extremely minimal, with just two main scripts:
-- `build.py`: Builds the project
-- `run.py`: Runs integration tests between the device and driver
-
-## Building and Running
-
-### Building the Project
-
-To build the project, simply run:
+The project is structured in multiple layers, creating a comprehensive testing and development environment:
 
 ```
-python run.py build
+┌─────────────────────────────────┐
+│       Integration Tests         │
+├─────────────────────────────────┤
+│     Custom Testing Framework    │
+├─────────────────────────────────┤
+│        Python Wrappers          │
+├─────────────────────────────────┤
+│ C Base Layer (Driver & Device)  │
+└─────────────────────────────────┘
 ```
 
-This will build the project using CMake and place the output in the `build/` directory.
+### 1. C Base Layer
 
-### Running Integration Tests
+The foundation of the project is written in C and consists of two main components:
 
-To run integration tests between the device and driver, simply run:
+- **Device DLL (`semi_vibe_device.dll`)**: Simulates a hardware device with sensors (temperature, humidity) and actuators (LED, fan, heater, doors).
+- **Driver DLL (`semi_vibe_driver.dll`)**: Provides the interface to communicate with the device using a defined protocol.
 
-```
-python run.py
-```
+These components are compiled into separate DLLs using CMake, allowing them to be loaded dynamically by the higher layers.
 
-or
+### 2. Python Wrappers
 
-```
-python run.py test
-```
+Python wrappers provide a high-level interface to the C-based DLLs:
 
-This will:
-1. Start the device simulator in the background
-2. Connect to it using the driver
-3. Run a series of tests to verify functionality, including:
-   - Basic device status and sensor reading
-   - Actuator control (LED, fan, heater, doors)
-   - Power management
-   - Reset functionality
-   - Protocol compliance tests (read-only/write-only locations)
-   - Reserved bit handling
-   - Auto-clearing register behavior
-4. Display test results in a clean, organized format
-5. Show a detailed communication log with:
-   - All commands sent from driver to device
-   - All responses sent from device to driver
-   - Human-readable descriptions of each command
-   - Interpretations of the response values
-6. Automatically clean up when done
+- **Device Wrapper (`device.py`)**: Wraps the device DLL, providing a Python interface to the simulated hardware.
+- **Driver Wrapper (`driver.py`)**: Wraps the driver DLL, allowing Python code to interact with the driver.
 
-All output is displayed in a single console window with a clean separation between test results and communication log for a perfect debugging experience.
+These wrappers use `ctypes` to load and interact with the DLLs, exposing their functionality through Pythonic interfaces.
 
-## Device and Driver Architecture
+### 3. Custom Testing Framework
 
-### Device
+A handmade testing framework (`test_runner.py`) provides:
 
-The device simulates:
-- 2 sensors (temperature and humidity)
-- 4 actuators (LED, fan, heater, and doors)
+- Automatic test discovery
+- Consistent test execution
+- Result reporting
+- Direct access to both driver and device for comprehensive testing
 
-Commands are sent to the device using a simple protocol as defined in the LAW.md file.
+### 4. Testing Application
 
-### Driver
+The top layer is a testing application (`run.py`) that:
 
-The driver provides a high-level API to interact with the device:
-- Connect/disconnect to the device
-- Get device status
-- Read sensor data
-- Control actuators
-- Power management
-- Reset functionality
+- Initializes the device and driver
+- Establishes connections
+- Runs the test suite
+- Reports results
+- Handles cleanup
 
-## Requirements
+## Protocol
 
-- Windows
-- Python 3.6+
-- CMake 3.10+
-- Visual Studio 2019+ or other C compiler 
+The communication between the driver and device uses a custom protocol defined in `semi_vibe_protocol.h`. This protocol:
 
-## Recent Improvements
+- Uses a register-based approach with base addresses and offsets
+- Supports read and write operations
+- Includes error handling mechanisms
+- Enables control of various device components
 
-### Driver Refactoring
+## Development Methodology
 
-The driver implementation has been refactored to improve code quality and maintainability:
+This project was developed using an LLM-assisted approach with Claude 3.7.
 
-1. **Improved Code Organization**: Introduced a `DriverState` struct to encapsulate global state variables, making the code more modular and easier to maintain.
+The architecture was specifically designed to allow an LLM to edit and improve the code while maintaining a stable testing environment. This approach enables:
 
-2. **Command Builder Function**: Added a centralized `build_command` function to eliminate code duplication and standardize command construction.
+- Rapid prototyping
+- Continuous validation against integration tests
+- Focused improvements to specific components
+- Maintaining overall system stability during development
 
-3. **Enhanced Error Handling**: Improved error handling in the `send_and_receive` function to properly log error responses without treating them as failures.
+## Key Features
 
-4. **Protocol Compliance**: Ensured proper handling of protocol restrictions, including read-only registers and reserved bits.
+- **Simulated Hardware**: Complete simulation of a device with sensors and actuators
+- **Protocol-Based Communication**: Well-defined communication protocol
+- **Comprehensive Testing**: Extensive test suite covering various scenarios
+- **Cross-Language Integration**: Seamless integration between C and Python
+- **Error Handling**: Robust error detection and reporting
+- **Modular Design**: Clear separation of concerns between components
 
-5. **Memory Safety**: Implemented safer buffer handling to prevent potential buffer overflow issues.
+## Conclusion
 
-6. **Bit Position Constants**: Added named constants for bit positions (e.g., `BIT_LED`, `BIT_FAN`) to improve code readability and maintainability.
+The Semi-Vibe-Driver project demonstrates a approach to driver development that leverages layered architecture, comprehensive testing, and LLM-assisted coding. This methodology enables rapid development while maintaining high quality and testability, making it an template framework for similar embedded systems projects.
 
-7. **Comprehensive Documentation**: Added detailed function documentation with Doxygen-style comments to explain the purpose and parameters of each function.
+Altough the project goal was to create a driver for a imaginary device, the framework that was used is more valuable that the specific implementation of the driver. 
 
-8. **Improved Logging**: Enhanced logging to include both sent commands and received responses, making debugging easier.
+My current view on unit tests and integration tests in embedded systems is a bit wonky, i prefer much more integration tests over unit tests. 
+That way testing does not affect that acrchitectual decisions and atleas reduces the amount of abstraction layers needed. Every codebase will have bugs and statistically having less code means less bugs.
 
-9. **Bitmask Helper Function**: Added a `create_bitmask` helper function to centralize the creation of bitmasks from boolean values, reducing code duplication in power and reset functions.
 
-10. **Protocol Message Struct**: Introduced a `SemiVibeMessage` struct in a new `semi_vibe_protocol.h` file to represent the protocol message format, making the code more elegant and easier to understand. This includes helper functions for parsing, formatting, and creating error messages.
-
-These improvements make the driver more robust, maintainable, and easier to extend with new functionality.
-
-### Code Formatting
-
-Added a comprehensive `.clang-format` configuration with the following features:
-
-1. **Increased Line Length**: Set column limit to 140 characters to allow for more readable code while still maintaining good practices.
-
-2. **Consistent Indentation**: Standardized on 2-space indentation for all code.
-
-3. **Pointer Alignment**: Configured left-aligned pointers (`Type* var`) for consistency.
-
-4. **Brace Style**: Adopted the LLVM-style attached braces for all code blocks.
-
-5. **Include Organization**: Enabled automatic sorting of includes for better organization.
-
-These formatting rules help maintain a consistent code style throughout the project, making it easier to read and maintain. 
