@@ -120,6 +120,13 @@ EXPORT bool driver_get_actuators(ActuatorData *data);
 EXPORT bool driver_set_led(uint8_t value);
 
 /**
+ * @brief Get LED value
+ * @param value Pointer to store the LED brightness (0-255)
+ * @return true if successful, false otherwise
+ */
+EXPORT bool driver_get_led(uint8_t *value);
+
+/**
  * @brief Set fan value
  * @param value Value to set (0-255)
  * @return true if successful, false otherwise

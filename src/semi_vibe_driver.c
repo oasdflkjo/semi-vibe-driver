@@ -327,6 +327,20 @@ EXPORT bool driver_get_actuators(ActuatorData *data) {
 EXPORT bool driver_set_led(uint8_t value) { return write_register(BASE_ACTUATOR, OFFSET_LED, value); }
 
 /**
+ * @brief Get LED value
+ *
+ * @param value Pointer to store the LED brightness (0-255)
+ * @return true if value was retrieved successfully
+ */
+EXPORT bool driver_get_led(uint8_t *value) {
+  if (!g_driver.connected || !value) {
+    return false;
+  }
+
+  return read_register(BASE_ACTUATOR, OFFSET_LED, value);
+}
+
+/**
  * @brief Set fan value
  *
  * @param value Fan speed (0-255)

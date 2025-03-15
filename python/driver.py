@@ -98,6 +98,9 @@ class DriverDLL:
         self.dll.driver_set_led.argtypes = [c_uint8]
         self.dll.driver_set_led.restype = c_bool
 
+        self.dll.driver_get_led.argtypes = [POINTER(c_uint8)]
+        self.dll.driver_get_led.restype = c_bool
+
         self.dll.driver_set_fan.argtypes = [c_uint8]
         self.dll.driver_set_fan.restype = c_bool
 
@@ -229,6 +232,17 @@ class DriverDLL:
             bool: True if successful
         """
         return self.dll.driver_set_led(value)
+
+    def get_led(self):
+        """Get LED value.
+
+        Returns:
+            int: LED value (0-255) or None if failed
+        """
+        value = c_uint8()
+        if self.dll.driver_get_led(ctypes.byref(value)):
+            return value.value
+        return None
 
     def set_fan(self, value):
         """Set fan value.
