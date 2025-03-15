@@ -3,6 +3,16 @@
 Basic test cases for device connectivity.
 """
 
+import ctypes
+import sys
+import os
+
+# Add the python directory to the path
+sys.path.append(
+    os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "python")
+)
+from utils import get_driver_status, get_driver_actuators, set_led
+
 
 ## quick fix to disable print statements
 def print(string):
@@ -14,12 +24,12 @@ def test_connection(driver):
     print("\n=== Testing Connection ===")
 
     # Get device status
-    status = driver.get_status()
+    status = get_driver_status(driver)
     if not status:
         print("❌ Failed to get device status")
         return False
 
-    if not status.get("connected", False):
+    if not status["connected"]:
         print("❌ Device reports not connected")
         return False
 
@@ -34,12 +44,14 @@ def test_direct_access(driver, device):
     # Set a value directly on the device
     test_value = 123
     print(f"Setting LED directly to {test_value}...")
-    if not device.set_led(test_value):
+
+    # Set LED value using utility function
+    if not set_led(device, test_value):
         print("❌ Failed to set LED value directly")
         return False
 
     # Read the value through the driver
-    actuators = driver.get_actuators()
+    actuators = get_driver_actuators(driver)
     if not actuators:
         print("❌ Failed to get actuator data through driver")
         return False

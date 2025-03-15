@@ -30,7 +30,15 @@ def discover_test_modules():
 
 
 def run_all_tests(driver, device=None):
-    """Run all discovered tests."""
+    """Run all discovered tests.
+
+    Args:
+        driver: DriverDLL instance
+        device: DeviceDLL instance (optional)
+
+    Returns:
+        bool: True if all tests passed, False otherwise
+    """
     test_modules = discover_test_modules()
     print(f"\n=== Found {len(test_modules)} test modules ===")
 
