@@ -1,70 +1,36 @@
 # Semi-Vibe-Device Testing Framework
 
-This directory contains the unified testing framework for the Semi-Vibe-Device simulator and driver.
+This directory contains the testing framework for the Semi-Vibe-Device project. The framework is designed to be minimalist and easy to understand.
 
-## Overview
+## Architecture
 
-The testing framework is designed to be modular and extensible. It consists of:
+The testing framework consists of three main components:
 
-1. A test runner (`test_runner.py`) that discovers and runs all test modules
-2. Individual test modules for different device functionalities
+1. **Driver Interface**: A Python wrapper that communicates with the device via sockets. It sends commands and receives responses in JSON format.
+
+2. **Simulated Device**: A Python implementation of the device that responds to commands. It maintains an internal state and can be accessed directly for testing.
+
+3. **Testing Framework**: A collection of test modules that verify the functionality of the driver and device.
 
 ## Test Structure
 
-Each test module should:
-
-1. Be named with a `test_` prefix (e.g., `test_sensors.py`, `test_actuators.py`)
-2. Contain individual test functions that accept a `driver` parameter
-3. Include a `run_tests(driver)` function that runs all tests in the module and returns a boolean result
-
-## Adding New Tests
-
-To add a new test module:
-
-1. Create a new Python file with a `test_` prefix in the `tests` directory
-2. Implement individual test functions that accept a `driver` parameter
-3. Implement a `run_tests(driver)` function that runs all tests and returns a boolean result
-
-### Example Test Module
+Each test module should follow this structure:
 
 ```python
-#!/usr/bin/env python3
-"""
-Test cases for a specific functionality.
-"""
-
-def test_feature_one(driver):
-    """Test a specific feature."""
-    print("\n=== Testing Feature One ===")
-    
+def test_something(driver, device=None):
+    """Test a specific functionality."""
     # Test implementation
-    # ...
-    
-    print("✅ Feature one test passed")
-    return True
+    return True  # or False if the test fails
 
-
-def test_feature_two(driver):
-    """Test another feature."""
-    print("\n=== Testing Feature Two ===")
-    
-    # Test implementation
-    # ...
-    
-    print("✅ Feature two test passed")
-    return True
-
-
-def run_tests(driver):
+def run_tests(driver, device=None):
     """Run all tests in this module."""
     results = []
     
     # Run tests
-    results.append(("Feature One", test_feature_one(driver)))
-    results.append(("Feature Two", test_feature_two(driver)))
+    results.append(("Test Name", test_something(driver, device)))
     
     # Print summary
-    print("\n=== Module Tests Summary ===")
+    print("\n=== Test Summary ===")
     all_passed = True
     for name, result in results:
         status = "✅ PASSED" if result else "❌ FAILED"
@@ -76,17 +42,35 @@ def run_tests(driver):
 
 ## Running Tests
 
-Tests are automatically discovered and run by the main `run.py` script:
+To run all tests:
 
-```
-python run.py test
+```bash
+python run.py
 ```
 
 This will:
+1. Start the simulated device
+2. Initialize the driver and connect to the device
+3. Run all test modules
+4. Clean up and shut down
 
-1. Start the device server
-2. Initialize the driver
-3. Connect to the device
-4. Perform basic device tests
-5. Run all discovered test modules
-6. Display a communication log and test summary 
+## Adding New Tests
+
+To add a new test module:
+
+1. Create a new file named `test_*.py` in the `tests` directory
+2. Implement the test functions and the `run_tests` function
+3. The test runner will automatically discover and run your tests
+
+## Debugging
+
+The driver and device both log all sent and received messages, making it easy to debug communication issues. Look for lines with `[DRIVER]` and `[DEVICE]` prefixes in the output.
+
+## Direct Access vs Socket Communication
+
+Tests can interact with the device in two ways:
+
+1. **Through the driver** (using sockets): This tests the full communication stack
+2. **Directly with the device**: This allows modifying the device state directly for testing
+
+Most tests should use both approaches to verify that the driver correctly communicates with the device. 

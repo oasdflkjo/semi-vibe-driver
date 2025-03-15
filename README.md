@@ -1,6 +1,98 @@
-# Semi-Vibe-Device Simulator
+# Semi-Vibe-Device Project
 
-A simulator for a fictional device with sensors and actuators, designed for Windows.
+A minimalist implementation of a device driver and simulator with a focus on simplicity and understandability.
+
+## Project Structure
+
+The project is organized into the following components:
+
+```
+.
+├── python/                 # Python implementation
+│   ├── driver.py           # Driver interface
+│   ├── device.py           # Simulated device
+│   ├── server.py           # Device server
+│   ├── run_server.py       # Script to run the device server directly
+│   └── run_driver.py       # Script to test the driver directly
+│
+├── tests/                  # Testing framework
+│   ├── test_runner.py      # Test discovery and execution
+│   ├── test_basic.py       # Basic connectivity tests
+│   ├── test_sensors.py     # Sensor functionality tests
+│   ├── test_actuators.py   # Actuator functionality tests
+│   └── README.md           # Testing documentation
+│
+└── run.py                  # Main entry point for testing
+```
+
+## Design Philosophy
+
+This project follows a minimalist design philosophy:
+
+1. **Simplicity**: Keep the code simple and easy to understand
+2. **Transparency**: Make communication between components visible
+3. **Testability**: Design components to be easily testable
+4. **Modularity**: Keep components loosely coupled
+
+## Components
+
+### Driver Interface
+
+The driver interface provides a simple API to communicate with the device. It:
+
+- Sends commands to the device via sockets
+- Receives and parses responses
+- Provides a clean API for applications
+- Logs all communication for debugging
+
+### Simulated Device
+
+The simulated device implements the device protocol and:
+
+- Listens for commands on a socket
+- Maintains internal state
+- Responds to commands according to the protocol
+- Logs all communication for debugging
+- Provides direct access methods for testing
+
+### Testing Framework
+
+The testing framework verifies the functionality of the driver and device:
+
+- Runs tests for all components
+- Verifies communication between driver and device
+- Tests both socket communication and direct access
+- Provides detailed logs for debugging
+
+## Running the Project
+
+### Running the Full Test Suite
+
+```bash
+python run.py
+```
+
+This will:
+1. Start the simulated device
+2. Initialize the driver
+3. Run all tests
+4. Clean up and shut down
+
+### Running the Device Server Separately
+
+```bash
+python python/run_server.py
+```
+
+### Testing the Driver Against a Running Server
+
+```bash
+python python/run_driver.py
+```
+
+## Debugging
+
+Both the driver and device log all sent and received messages, making it easy to debug communication issues. Look for lines with `[DRIVER]` and `[DEVICE]` prefixes in the output.
 
 ## Project Overview
 
@@ -12,19 +104,6 @@ This project simulates a fictional device called Semi-Vibe-Device with sensors a
 The project is designed to be extremely minimal, with just two main scripts:
 - `build.py`: Builds the project
 - `run.py`: Runs integration tests between the device and driver
-
-## Project Structure
-
-- `src/` - C source code
-  - `semi_vibe_device.c` - Device simulator implementation
-  - `semi_vibe_device.h` - Device simulator header
-  - `semi_vibe_driver.c` - Driver implementation
-  - `semi_vibe_driver.h` - Driver header
-- `python/` - Python support scripts
-  - `server.py` - Server script for the device simulator
-  - `driver.py` - Python wrapper for the driver
-- `build.py` - Build script
-- `run.py` - Run script for integration testing
 
 ## Building and Running
 

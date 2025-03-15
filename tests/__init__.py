@@ -1,3 +1,5 @@
 """
-Test package for Semi-Vibe-Device simulator and driver.
+Tests package for Semi-Vibe-Device.
 """
+
+# This file makes the tests directory a Python package
