@@ -248,28 +248,6 @@ EXPORT bool driver_get_status(DeviceStatus *status) {
 }
 
 /**
- * @brief Get sensor data
- *
- * @param data Pointer to SensorData structure to be filled
- * @return true if sensor data was retrieved successfully
- */
-EXPORT bool driver_get_sensors(SensorData *data) {
-  if (!g_driver.connected || !data) {
-    return false;
-  }
-
-  // Read sensor registers
-  if (!read_register(BASE_SENSOR, OFFSET_TEMP_ID, &data->temperature_id) ||
-      !read_register(BASE_SENSOR, OFFSET_TEMP_VALUE, &data->temperature_value) ||
-      !read_register(BASE_SENSOR, OFFSET_HUMID_ID, &data->humidity_id) ||
-      !read_register(BASE_SENSOR, OFFSET_HUMID_VALUE, &data->humidity_value)) {
-    return false;
-  }
-
-  return true;
-}
-
-/**
  * @brief Get humidity value
  *
  * @param value Pointer to store the humidity value (0-100)
@@ -295,27 +273,6 @@ EXPORT bool driver_get_temperature(uint8_t *value) {
   }
 
   return read_register(BASE_SENSOR, OFFSET_TEMP_VALUE, value);
-}
-
-/**
- * @brief Get actuator data
- *
- * @param data Pointer to ActuatorData structure to be filled
- * @return true if actuator data was retrieved successfully
- */
-EXPORT bool driver_get_actuators(ActuatorData *data) {
-  if (!g_driver.connected || !data) {
-    return false;
-  }
-
-  // Read actuator registers
-  if (!read_register(BASE_ACTUATOR, OFFSET_LED, &data->led_value) || !read_register(BASE_ACTUATOR, OFFSET_FAN, &data->fan_value) ||
-      !read_register(BASE_ACTUATOR, OFFSET_HEATER, &data->heater_value) ||
-      !read_register(BASE_ACTUATOR, OFFSET_DOORS, &data->doors_value)) {
-    return false;
-  }
-
-  return true;
 }
 
 /**

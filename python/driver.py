@@ -83,17 +83,11 @@ class DriverDLL:
         self.dll.driver_get_status.argtypes = [POINTER(DeviceStatus)]
         self.dll.driver_get_status.restype = c_bool
 
-        self.dll.driver_get_sensors.argtypes = [POINTER(SensorData)]
-        self.dll.driver_get_sensors.restype = c_bool
-
         self.dll.driver_get_humidity.argtypes = [POINTER(c_uint8)]
         self.dll.driver_get_humidity.restype = c_bool
 
         self.dll.driver_get_temperature.argtypes = [POINTER(c_uint8)]
         self.dll.driver_get_temperature.restype = c_bool
-
-        self.dll.driver_get_actuators.argtypes = [POINTER(ActuatorData)]
-        self.dll.driver_get_actuators.restype = c_bool
 
         self.dll.driver_set_led.argtypes = [c_uint8]
         self.dll.driver_set_led.restype = c_bool
@@ -178,17 +172,6 @@ class DriverDLL:
         """
         return self.dll.driver_get_status(ctypes.byref(status))
 
-    def get_sensors(self, data):
-        """Get sensor data.
-
-        Args:
-            data: SensorData structure to fill
-
-        Returns:
-            bool: True if successful
-        """
-        return self.dll.driver_get_sensors(ctypes.byref(data))
-
     def get_humidity(self):
         """Get humidity value.
 
@@ -210,17 +193,6 @@ class DriverDLL:
         if self.dll.driver_get_temperature(ctypes.byref(value)):
             return value.value
         return None
-
-    def get_actuators(self, data):
-        """Get actuator data.
-
-        Args:
-            data: ActuatorData structure to fill
-
-        Returns:
-            bool: True if successful
-        """
-        return self.dll.driver_get_actuators(ctypes.byref(data))
 
     def set_led(self, value):
         """Set LED value.

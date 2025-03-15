@@ -85,13 +85,6 @@ EXPORT bool driver_disconnect();
 EXPORT bool driver_get_status(DeviceStatus *status);
 
 /**
- * @brief Get sensor data
- * @param data Pointer to sensor data structure to fill
- * @return true if successful, false otherwise
- */
-EXPORT bool driver_get_sensors(SensorData *data);
-
-/**
  * @brief Get humidity value
  * @param value Pointer to store the humidity value (0-100)
  * @return true if successful, false otherwise
@@ -104,13 +97,6 @@ EXPORT bool driver_get_humidity(uint8_t *value);
  * @return true if successful, false otherwise
  */
 EXPORT bool driver_get_temperature(uint8_t *value);
-
-/**
- * @brief Get actuator data
- * @param data Pointer to actuator data structure to fill
- * @return true if successful, false otherwise
- */
-EXPORT bool driver_get_actuators(ActuatorData *data);
 
 /**
  * @brief Set LED value

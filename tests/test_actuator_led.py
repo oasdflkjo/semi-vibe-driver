@@ -19,12 +19,11 @@ def test_led_range(driver):
     test_utils.print_func("\n=== Testing LED Range (Brute Force) ===")
 
     # Get initial LED value
-    actuator_data = ActuatorData()
-    if not driver.get_actuators(actuator_data):
-        test_utils.print_func("❌ Failed to get actuator data")
+    initial_value = driver.get_led()
+    if initial_value is None:
+        test_utils.print_func("❌ Failed to get initial LED value")
         return False
 
-    initial_value = actuator_data.led_value
     test_utils.print_func(f"Initial LED value: {initial_value}")
 
     # Test every value in the range 0-255
@@ -42,17 +41,17 @@ def test_led_range(driver):
             continue
 
         # Verify the value
-        actuator_data = ActuatorData()
-        if not driver.get_actuators(actuator_data):
-            test_utils.print_func("❌ Failed to get updated actuator data")
+        read_value = driver.get_led()
+        if read_value is None:
+            test_utils.print_func("❌ Failed to get updated LED value")
             all_passed = False
             failed_values.append(test_value)
             continue
 
-        test_utils.print_func(f"Read back LED value: {actuator_data.led_value}")
-        if actuator_data.led_value != test_value:
+        test_utils.print_func(f"Read back LED value: {read_value}")
+        if read_value != test_value:
             test_utils.print_func(
-                f"❌ LED value mismatch: expected {test_value}, got {actuator_data.led_value}"
+                f"❌ LED value mismatch: expected {test_value}, got {read_value}"
             )
             all_passed = False
             failed_values.append(test_value)
@@ -69,12 +68,12 @@ def test_led_range(driver):
         return False
 
     # Verify the reset value
-    actuator_data = ActuatorData()
-    if not driver.get_actuators(actuator_data):
-        test_utils.print_func("❌ Failed to get actuator data after reset")
+    final_value = driver.get_led()
+    if final_value is None:
+        test_utils.print_func("❌ Failed to get LED value after reset")
         return False
 
-    test_utils.print_func(f"Final LED value after reset: {actuator_data.led_value}")
+    test_utils.print_func(f"Final LED value after reset: {final_value}")
 
     if all_passed:
         test_utils.print_func("✅ LED range test passed for all 256 values")

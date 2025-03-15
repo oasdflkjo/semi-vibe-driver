@@ -20,12 +20,11 @@ def test_temperature_sensor_range(driver, device):
     test_utils.print_func("\n=== Testing Temperature Sensor Range (Brute Force) ===")
 
     # Get initial temperature value
-    sensor_data = SensorData()
-    if not driver.get_sensors(sensor_data):
-        test_utils.print_func("❌ Failed to get sensor data")
+    initial_value = driver.get_temperature()
+    if initial_value is None:
+        test_utils.print_func("❌ Failed to get initial temperature value")
         return False
 
-    initial_value = sensor_data.temperature_value
     test_utils.print_func(f"Initial temperature value: {initial_value}")
 
     # Test every value in the range 0-255
@@ -54,19 +53,17 @@ def test_temperature_sensor_range(driver, device):
             continue
 
         # Verify the value through the driver
-        sensor_data = SensorData()
-        if not driver.get_sensors(sensor_data):
-            test_utils.print_func("❌ Failed to get updated sensor data")
+        read_value = driver.get_temperature()
+        if read_value is None:
+            test_utils.print_func("❌ Failed to get updated temperature value")
             all_passed = False
             failed_values.append(test_value)
             continue
 
-        test_utils.print_func(
-            f"Driver reports temperature value: {sensor_data.temperature_value}"
-        )
-        if sensor_data.temperature_value != test_value:
+        test_utils.print_func(f"Driver reports temperature value: {read_value}")
+        if read_value != test_value:
             test_utils.print_func(
-                f"❌ Temperature value mismatch: expected {test_value}, got {sensor_data.temperature_value}"
+                f"❌ Temperature value mismatch: expected {test_value}, got {read_value}"
             )
             all_passed = False
             failed_values.append(test_value)

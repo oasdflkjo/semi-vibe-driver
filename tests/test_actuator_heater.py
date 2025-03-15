@@ -19,12 +19,11 @@ def test_heater_range(driver):
     test_utils.print_func("\n=== Testing Heater Range (Brute Force) ===")
 
     # Get initial heater value
-    actuator_data = ActuatorData()
-    if not driver.get_actuators(actuator_data):
-        test_utils.print_func("❌ Failed to get actuator data")
+    initial_value = driver.get_heater()
+    if initial_value is None:
+        test_utils.print_func("❌ Failed to get initial heater value")
         return False
 
-    initial_value = actuator_data.heater_value
     test_utils.print_func(f"Initial heater value: {initial_value}")
 
     # Test every value in the valid range 0-15 (only lower 4 bits are used)
@@ -42,17 +41,17 @@ def test_heater_range(driver):
             continue
 
         # Verify the value
-        actuator_data = ActuatorData()
-        if not driver.get_actuators(actuator_data):
-            test_utils.print_func("❌ Failed to get updated actuator data")
+        read_value = driver.get_heater()
+        if read_value is None:
+            test_utils.print_func("❌ Failed to get updated heater value")
             all_passed = False
             failed_values.append(test_value)
             continue
 
-        test_utils.print_func(f"Read back heater value: {actuator_data.heater_value}")
-        if actuator_data.heater_value != test_value:
+        test_utils.print_func(f"Read back heater value: {read_value}")
+        if read_value != test_value:
             test_utils.print_func(
-                f"❌ Heater value mismatch: expected {test_value}, got {actuator_data.heater_value}"
+                f"❌ Heater value mismatch: expected {test_value}, got {read_value}"
             )
             all_passed = False
             failed_values.append(test_value)
@@ -69,14 +68,12 @@ def test_heater_range(driver):
         return False
 
     # Verify the reset value
-    actuator_data = ActuatorData()
-    if not driver.get_actuators(actuator_data):
-        test_utils.print_func("❌ Failed to get actuator data after reset")
+    final_value = driver.get_heater()
+    if final_value is None:
+        test_utils.print_func("❌ Failed to get heater value after reset")
         return False
 
-    test_utils.print_func(
-        f"Final heater value after reset: {actuator_data.heater_value}"
-    )
+    test_utils.print_func(f"Final heater value after reset: {final_value}")
 
     if all_passed:
         test_utils.print_func("✅ Heater range test passed for all 16 values")
