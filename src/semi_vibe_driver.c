@@ -463,58 +463,6 @@ static uint8_t create_bitmask(int count, ...) {
 }
 
 /**
- * @brief Power sensors on/off
- *
- * @param temperature_on Whether temperature sensor should be powered
- * @param humidity_on Whether humidity sensor should be powered
- * @return true if power state was set successfully
- */
-EXPORT bool driver_power_sensors(bool temperature_on, bool humidity_on) {
-  uint8_t value = create_bitmask(2, temperature_on, BIT_TEMP_SENSOR, humidity_on, BIT_HUMID_SENSOR);
-  return write_register(BASE_CONTROL, OFFSET_POWER_SENSORS, value);
-}
-
-/**
- * @brief Power actuators on/off
- *
- * @param led_on Whether LED should be powered
- * @param fan_on Whether fan should be powered
- * @param heater_on Whether heater should be powered
- * @param doors_on Whether doors should be powered
- * @return true if power state was set successfully
- */
-EXPORT bool driver_power_actuators(bool led_on, bool fan_on, bool heater_on, bool doors_on) {
-  uint8_t value = create_bitmask(4, led_on, BIT_LED, fan_on, BIT_FAN, heater_on, BIT_HEATER, doors_on, BIT_DOORS);
-  return write_register(BASE_CONTROL, OFFSET_POWER_ACTUATORS, value);
-}
-
-/**
- * @brief Reset sensors
- *
- * @param reset_temperature Whether to reset temperature sensor
- * @param reset_humidity Whether to reset humidity sensor
- * @return true if reset was successful
- */
-EXPORT bool driver_reset_sensors(bool reset_temperature, bool reset_humidity) {
-  uint8_t value = create_bitmask(2, reset_temperature, BIT_TEMP_SENSOR, reset_humidity, BIT_HUMID_SENSOR);
-  return write_register(BASE_CONTROL, OFFSET_RESET_SENSORS, value);
-}
-
-/**
- * @brief Reset actuators
- *
- * @param reset_led Whether to reset LED
- * @param reset_fan Whether to reset fan
- * @param reset_heater Whether to reset heater
- * @param reset_doors Whether to reset doors
- * @return true if reset was successful
- */
-EXPORT bool driver_reset_actuators(bool reset_led, bool reset_fan, bool reset_heater, bool reset_doors) {
-  uint8_t value = create_bitmask(4, reset_led, BIT_LED, reset_fan, BIT_FAN, reset_heater, BIT_HEATER, reset_doors, BIT_DOORS);
-  return write_register(BASE_CONTROL, OFFSET_RESET_ACTUATORS, value);
-}
-
-/**
  * @brief Send a command and receive a response
  *
  * @param request Message structure for the request
@@ -814,8 +762,9 @@ EXPORT bool driver_set_power_state(int component_type, bool powered) {
       humidity_on = powered;
     }
 
-    // Set the new power state
-    return driver_power_sensors(temperature_on, humidity_on);
+    // Create bitmask and write to register
+    uint8_t value = create_bitmask(2, temperature_on, BIT_TEMP_SENSOR, humidity_on, BIT_HUMID_SENSOR);
+    return write_register(BASE_CONTROL, OFFSET_POWER_SENSORS, value);
   }
   // For actuators
   else {
@@ -848,8 +797,9 @@ EXPORT bool driver_set_power_state(int component_type, bool powered) {
       return false;
     }
 
-    // Set the new power state
-    return driver_power_actuators(led_on, fan_on, heater_on, doors_on);
+    // Create bitmask and write to register
+    uint8_t value = create_bitmask(4, led_on, BIT_LED, fan_on, BIT_FAN, heater_on, BIT_HEATER, doors_on, BIT_DOORS);
+    return write_register(BASE_CONTROL, OFFSET_POWER_ACTUATORS, value);
   }
 }
 
@@ -884,8 +834,9 @@ EXPORT bool driver_reset_component(int component_type) {
       reset_humidity = true;
     }
 
-    // Set the reset state
-    return driver_reset_sensors(reset_temperature, reset_humidity);
+    // Create bitmask and write to register
+    uint8_t value = create_bitmask(2, reset_temperature, BIT_TEMP_SENSOR, reset_humidity, BIT_HUMID_SENSOR);
+    return write_register(BASE_CONTROL, OFFSET_RESET_SENSORS, value);
   }
   // For actuators
   else {
@@ -930,7 +881,8 @@ EXPORT bool driver_reset_component(int component_type) {
       return false;
     }
 
-    // Set the reset state
-    return driver_reset_actuators(reset_led, reset_fan, reset_heater, reset_doors);
+    // Create bitmask and write to register
+    uint8_t value = create_bitmask(4, reset_led, BIT_LED, reset_fan, BIT_FAN, reset_heater, BIT_HEATER, reset_doors, BIT_DOORS);
+    return write_register(BASE_CONTROL, OFFSET_RESET_ACTUATORS, value);
   }
 }

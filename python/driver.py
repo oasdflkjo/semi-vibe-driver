@@ -121,18 +121,6 @@ class DriverDLL:
         self.dll.driver_get_door_state.argtypes = [c_int, POINTER(c_int)]
         self.dll.driver_get_door_state.restype = c_bool
 
-        self.dll.driver_power_sensors.argtypes = [c_bool, c_bool]
-        self.dll.driver_power_sensors.restype = c_bool
-
-        self.dll.driver_power_actuators.argtypes = [c_bool, c_bool, c_bool, c_bool]
-        self.dll.driver_power_actuators.restype = c_bool
-
-        self.dll.driver_reset_sensors.argtypes = [c_bool, c_bool]
-        self.dll.driver_reset_sensors.restype = c_bool
-
-        self.dll.driver_reset_actuators.argtypes = [c_bool, c_bool, c_bool, c_bool]
-        self.dll.driver_reset_actuators.restype = c_bool
-
         self.dll.driver_get_power_state.argtypes = [c_int, POINTER(c_bool)]
         self.dll.driver_get_power_state.restype = c_bool
 
@@ -305,60 +293,6 @@ class DriverDLL:
         if self.dll.driver_get_door_state(door_id, ctypes.byref(state)):
             return state.value
         return None
-
-    def power_sensors(self, temperature_on, humidity_on):
-        """Power sensors on/off.
-
-        Args:
-            temperature_on: Power state for temperature sensor
-            humidity_on: Power state for humidity sensor
-
-        Returns:
-            bool: True if successful
-        """
-        return self.dll.driver_power_sensors(temperature_on, humidity_on)
-
-    def power_actuators(self, led_on, fan_on, heater_on, doors_on):
-        """Power actuators on/off.
-
-        Args:
-            led_on: Power state for LED
-            fan_on: Power state for fan
-            heater_on: Power state for heater
-            doors_on: Power state for doors
-
-        Returns:
-            bool: True if successful
-        """
-        return self.dll.driver_power_actuators(led_on, fan_on, heater_on, doors_on)
-
-    def reset_sensors(self, reset_temperature, reset_humidity):
-        """Reset sensors.
-
-        Args:
-            reset_temperature: Reset temperature sensor
-            reset_humidity: Reset humidity sensor
-
-        Returns:
-            bool: True if successful
-        """
-        return self.dll.driver_reset_sensors(reset_temperature, reset_humidity)
-
-    def reset_actuators(self, reset_led, reset_fan, reset_heater, reset_doors):
-        """Reset actuators.
-
-        Args:
-            reset_led: Reset LED
-            reset_fan: Reset fan
-            reset_heater: Reset heater
-            reset_doors: Reset doors
-
-        Returns:
-            bool: True if successful
-        """
-        return self.dll.driver_reset_actuators(
-            reset_led, reset_fan, reset_heater, reset_doors
-        )
 
     def get_power_state(self, component_type):
         """Get power state of a specific component.

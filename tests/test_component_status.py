@@ -126,7 +126,10 @@ def test_power_state(driver, device):
     test_utils.print_func("\nTesting power on/off for sensors...")
 
     # Power off sensors
-    if not driver.power_sensors(False, False):
+    if not (
+        driver.set_power_state(COMPONENT_TEMPERATURE, False)
+        and driver.set_power_state(COMPONENT_HUMIDITY, False)
+    ):
         test_utils.print_func("❌ Failed to power off sensors")
         all_passed = False
     else:
@@ -146,7 +149,10 @@ def test_power_state(driver, device):
             test_utils.print_func("✅ Sensors powered off successfully")
 
     # Power on sensors
-    if not driver.power_sensors(True, True):
+    if not (
+        driver.set_power_state(COMPONENT_TEMPERATURE, True)
+        and driver.set_power_state(COMPONENT_HUMIDITY, True)
+    ):
         test_utils.print_func("❌ Failed to power on sensors")
         all_passed = False
     else:
@@ -167,7 +173,12 @@ def test_power_state(driver, device):
     test_utils.print_func("\nTesting power on/off for actuators...")
 
     # Power off actuators
-    if not driver.power_actuators(False, False, False, False):
+    if not (
+        driver.set_power_state(COMPONENT_LED, False)
+        and driver.set_power_state(COMPONENT_FAN, False)
+        and driver.set_power_state(COMPONENT_HEATER, False)
+        and driver.set_power_state(COMPONENT_DOORS, False)
+    ):
         test_utils.print_func("❌ Failed to power off actuators")
         all_passed = False
     else:
@@ -194,7 +205,12 @@ def test_power_state(driver, device):
             test_utils.print_func("✅ Actuators powered off successfully")
 
     # Power on actuators
-    if not driver.power_actuators(True, True, True, True):
+    if not (
+        driver.set_power_state(COMPONENT_LED, True)
+        and driver.set_power_state(COMPONENT_FAN, True)
+        and driver.set_power_state(COMPONENT_HEATER, True)
+        and driver.set_power_state(COMPONENT_DOORS, True)
+    ):
         test_utils.print_func("❌ Failed to power on actuators")
         all_passed = False
     else:
@@ -299,7 +315,10 @@ def test_reset_component(driver, device):
 
     # Test resetting all sensors at once
     test_utils.print_func("\nTesting reset_sensors function...")
-    if not driver.reset_sensors(True, True):
+    if not (
+        driver.reset_component(COMPONENT_TEMPERATURE)
+        and driver.reset_component(COMPONENT_HUMIDITY)
+    ):
         test_utils.print_func("❌ Failed to reset all sensors")
         all_passed = False
     else:
@@ -307,7 +326,12 @@ def test_reset_component(driver, device):
 
     # Test resetting all actuators at once
     test_utils.print_func("\nTesting reset_actuators function...")
-    if not driver.reset_actuators(True, True, True, True):
+    if not (
+        driver.reset_component(COMPONENT_LED)
+        and driver.reset_component(COMPONENT_FAN)
+        and driver.reset_component(COMPONENT_HEATER)
+        and driver.reset_component(COMPONENT_DOORS)
+    ):
         test_utils.print_func("❌ Failed to reset all actuators")
         all_passed = False
     else:

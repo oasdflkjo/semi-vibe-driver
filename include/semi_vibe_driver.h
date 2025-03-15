@@ -165,42 +165,6 @@ EXPORT bool driver_set_door(int door_id, int state);
 EXPORT bool driver_get_door_state(int door_id, int *state);
 
 /**
- * @brief Power on/off sensors
- * @param temperature_on Power state for temperature sensor
- * @param humidity_on Power state for humidity sensor
- * @return true if successful, false otherwise
- */
-EXPORT bool driver_power_sensors(bool temperature_on, bool humidity_on);
-
-/**
- * @brief Power on/off actuators
- * @param led_on Power state for LED
- * @param fan_on Power state for fan
- * @param heater_on Power state for heater
- * @param doors_on Power state for doors
- * @return true if successful, false otherwise
- */
-EXPORT bool driver_power_actuators(bool led_on, bool fan_on, bool heater_on, bool doors_on);
-
-/**
- * @brief Reset sensors
- * @param reset_temperature Reset temperature sensor
- * @param reset_humidity Reset humidity sensor
- * @return true if successful, false otherwise
- */
-EXPORT bool driver_reset_sensors(bool reset_temperature, bool reset_humidity);
-
-/**
- * @brief Reset actuators
- * @param reset_led Reset LED
- * @param reset_fan Reset fan
- * @param reset_heater Reset heater
- * @param reset_doors Reset doors
- * @return true if successful, false otherwise
- */
-EXPORT bool driver_reset_actuators(bool reset_led, bool reset_fan, bool reset_heater, bool reset_doors);
-
-/**
  * @brief Get power state of a specific component
  * @param component_type Type of component (0=TEMPERATURE, 1=HUMIDITY, 2=LED, 3=FAN, 4=HEATER, 5=DOORS)
  * @param powered Pointer to store the power state (true=powered, false=not powered)
