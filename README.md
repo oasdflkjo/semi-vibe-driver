@@ -1,7 +1,7 @@
 # Semi-Vibe-Driver Project
 
-[![Build Status](https://github.com/username/semi-vibe-driver/actions/workflows/build-and-test.yml/badge.svg?branch=main&event=build-status)](https://github.com/username/semi-vibe-driver/actions/workflows/build-and-test.yml)
-[![Test Status](https://github.com/username/semi-vibe-driver/actions/workflows/build-and-test.yml/badge.svg?branch=main&event=test-status)](https://github.com/username/semi-vibe-driver/actions/workflows/build-and-test.yml)
+[![Build Status](https://github.com/oasdflkjo/semi-vibe-driver/actions/workflows/build-and-test.yml/badge.svg?branch=main&event=build-status)](https://github.com/oasdflkjo/semi-vibe-driver/actions/workflows/build-and-test.yml)
+[![Test Status](https://github.com/oasdflkjo/semi-vibe-driver/actions/workflows/build-and-test.yml/badge.svg?branch=main&event=test-status)](https://github.com/oasdflkjo/semi-vibe-driver/actions/workflows/build-and-test.yml)
 
 ## Project Overview
 
