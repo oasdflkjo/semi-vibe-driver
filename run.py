@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Run script for Semi-Vibe-Device simulator and driver.
-This script provides simple commands to build, test, and run the system.
+This script provides a unified testing system for the device and driver.
 """
 
 import os
@@ -32,36 +32,6 @@ def is_server_ready(host="localhost", port=8989, max_attempts=10):
 
     print(f"Server did not become ready after {max_attempts} attempts")
     return False
-
-
-def check_build():
-    """Check if the project is built and return True if it is."""
-    if not (
-        Path("build/bin/Debug/semi_vibe_device.dll").exists()
-        or Path("build/bin/semi_vibe_device.dll").exists()
-    ):
-        print("Error: Device DLL not found. Run 'python run.py build' first.")
-        return False
-
-    if not (
-        Path("build/bin/Debug/semi_vibe_driver.dll").exists()
-        or Path("build/bin/semi_vibe_driver.dll").exists()
-    ):
-        print("Error: Driver DLL not found. Run 'python run.py build' first.")
-        return False
-
-    return True
-
-
-def build_project():
-    """Build the project using the build.py script."""
-    print("Building the project...")
-    result = subprocess.run([sys.executable, "build.py"])
-    if result.returncode != 0:
-        print("Build failed.")
-        return False
-    print("Build completed successfully.")
-    return True
 
 
 def get_command_description(command, response):
@@ -340,13 +310,56 @@ def read_output(pipe, queue):
     queue.put(None)  # Signal that we're done
 
 
-def run_integration_test():
-    """Run integration tests with both device and driver."""
-    if not check_build():
-        return 1
+def perform_basic_tests(driver):
+    """Perform basic tests to verify device connectivity and read all registers."""
+    print("\n======== BASIC DEVICE TESTS ========")
 
-    print("\nRunning integration test...")
-    print("==========================")
+    # Get device status
+    print("\nReading device status...")
+    status = driver.get_status()
+    if not status:
+        print("❌ Failed to get device status")
+        return False
+
+    print("Device status:")
+    print(f"  Connected: {status['connected']}")
+    print(f"  Sensors powered: {status['sensors_powered']}")
+    print(f"  Actuators powered: {status['actuators_powered']}")
+    print(f"  Has errors: {status['has_errors']}")
+
+    # Get sensor data
+    print("\nReading sensor data...")
+    sensors = driver.get_sensors()
+    if not sensors:
+        print("❌ Failed to get sensor data")
+        return False
+
+    print("Sensor data:")
+    print(f"  Temperature ID: 0x{sensors['temperature_id']:02X}")
+    print(f"  Temperature value: {sensors['temperature_value']}")
+    print(f"  Humidity ID: 0x{sensors['humidity_id']:02X}")
+    print(f"  Humidity value: {sensors['humidity_value']}")
+
+    # Get actuator data
+    print("\nReading actuator data...")
+    actuators = driver.get_actuators()
+    if not actuators:
+        print("❌ Failed to get actuator data")
+        return False
+
+    print("Actuator data:")
+    print(f"  LED value: {actuators['led_value']}")
+    print(f"  Fan value: {actuators['fan_value']}")
+    print(f"  Heater value: {actuators['heater_value']}")
+    print(f"  Doors value: 0x{actuators['doors_value']:02X}")
+
+    print("\n✅ Basic device tests completed successfully")
+    return True
+
+
+def run_unified_tests():
+    """Run the unified testing system."""
+    print("\n======== STARTING UNIFIED TESTING SYSTEM ========")
 
     # Start the server in a separate process with pipes for stdout/stderr
     print("Starting device server...")
@@ -397,208 +410,47 @@ def run_integration_test():
     sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), "python"))
     from driver import Driver
 
-    # Run driver tests
-    print("\nRunning driver tests...")
-
+    # Initialize driver
+    print("\nInitializing driver...")
     driver = Driver()
     if not driver.init():
-        print("Failed to initialize driver")
+        print("❌ Failed to initialize driver")
         server.terminate()
         return 1
 
+    # Connect to device
+    print("\nConnecting to device...")
     if not driver.connect("localhost"):
-        print("Failed to connect to device")
+        print("❌ Failed to connect to device")
         server.terminate()
         return 1
+
+    print("✅ Successfully connected to device")
 
     try:
-        # Get device status
-        status = driver.get_status()
-        if not status:
-            print("Failed to get device status")
+        # Perform basic tests
+        if not perform_basic_tests(driver):
+            print("❌ Basic tests failed")
             return 1
 
-        print("\n======== TEST RESULTS ========")
-        print("\nDevice status:")
-        print(f"  Connected: {status['connected']}")
-        print(f"  Sensors powered: {status['sensors_powered']}")
-        print(f"  Actuators powered: {status['actuators_powered']}")
-        print(f"  Has errors: {status['has_errors']}")
+        # Import the test runner
+        sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+        from tests.test_runner import run_all_tests
 
-        # Get sensor data
-        sensors = driver.get_sensors()
-        if not sensors:
-            print("Failed to get sensor data")
-            return 1
+        # Run all tests
+        print("\n======== RUNNING TEST MODULES ========")
+        test_result = run_all_tests(driver)
 
-        print("\nSensor data:")
-        print(f"  Temperature ID: 0x{sensors['temperature_id']:02X}")
-        print(f"  Temperature value: {sensors['temperature_value']}")
-        print(f"  Humidity ID: 0x{sensors['humidity_id']:02X}")
-        print(f"  Humidity value: {sensors['humidity_value']}")
+        # Display the communication log
+        if communications:
+            display_communication(communications)
 
-        # Get actuator data
-        actuators = driver.get_actuators()
-        if not actuators:
-            print("Failed to get actuator data")
-            return 1
-
-        print("\nActuator data:")
-        print(f"  LED value: {actuators['led_value']}")
-        print(f"  Fan value: {actuators['fan_value']}")
-        print(f"  Heater value: {actuators['heater_value']}")
-        print(f"  Doors value: 0x{actuators['doors_value']:02X}")
-
-        # Test setting actuator values
-        print("\nTesting actuator control...")
-
-        print("Setting LED to 128...")
-        if not driver.set_led(128):
-            print("Failed to set LED value")
-            return 1
-
-        print("Setting fan to 200...")
-        if not driver.set_fan(200):
-            print("Failed to set fan value")
-            return 1
-
-        print("Setting heater to 10...")
-        if not driver.set_heater(10):
-            print("Failed to set heater value")
-            return 1
-
-        print("Setting doors to 0x55...")
-        if not driver.set_doors(0x55):
-            print("Failed to set doors value")
-            return 1
-
-        # Get updated actuator data
-        actuators = driver.get_actuators()
-        if not actuators:
-            print("Failed to get updated actuator data")
-            return 1
-
-        print("\nUpdated actuator data:")
-        print(f"  LED value: {actuators['led_value']}")
-        print(f"  Fan value: {actuators['fan_value']}")
-        print(f"  Heater value: {actuators['heater_value']}")
-        print(f"  Doors value: 0x{actuators['doors_value']:02X}")
-
-        # Test power control
-        print("\nTesting power control...")
-
-        print("Powering off all actuators...")
-        if not driver.power_actuators(False, False, False, False):
-            print("Failed to power off actuators")
-            return 1
-
-        # Get updated status
-        status = driver.get_status()
-        if not status:
-            print("Failed to get updated status")
-            return 1
-
-        print("Updated device status:")
-        print(f"  Actuators powered: {status['actuators_powered']}")
-
-        # Power actuators back on
-        print("Powering actuators back on...")
-        if not driver.power_actuators(True, True, True, True):
-            print("Failed to power on actuators")
-            return 1
-
-        # Test reset
-        print("\nTesting reset...")
-
-        print("Resetting all actuators...")
-        if not driver.reset_actuators(True, True, True, True):
-            print("Failed to reset actuators")
-            return 1
-
-        # Get updated actuator data after reset
-        actuators = driver.get_actuators()
-        if not actuators:
-            print("Failed to get actuator data after reset")
-            return 1
-
-        print("Actuator data after reset:")
-        print(f"  LED value: {actuators['led_value']}")
-        print(f"  Fan value: {actuators['fan_value']}")
-        print(f"  Heater value: {actuators['heater_value']}")
-        print(f"  Doors value: 0x{actuators['doors_value']:02X}")
-
-        # Additional tests for read-only and write-only locations
-        print("\n======== ADDITIONAL TESTS ========")
-
-        # Test 1: Writing to read-only locations (MAIN and SENSOR)
-        print("\nTesting writing to read-only locations...")
-
-        print("Attempting to write to MAIN register (should fail)...")
-        response = driver.send_command("102101")  # Try to write to power_state register
-        print(f"  Response: {response}")
-        print("  Expected: Error response or failure")
-
-        print("Attempting to write to SENSOR register (should fail)...")
-        response = driver.send_command("210101")  # Try to write to sensor_a_id register
-        print(f"  Response: {response}")
-        print("  Expected: Error response or failure")
-
-        # Test 2: Writing to registers with reserved bits
-        print("\nTesting writing to registers with reserved bits...")
-
-        print("Writing 0xFF to heater (only lower 4 bits should be set)...")
-        driver.set_heater(0xFF)  # Try to set all bits, but only lower 4 should be set
-        actuators = driver.get_actuators()
-        print(f"  Heater value after write: {actuators['heater_value']}")
-        print("  Expected: 15 (0x0F) - only lower 4 bits should be set")
-
-        print("Writing 0xFF to doors (only specific bits should be set)...")
-        driver.set_doors(
-            0xFF
-        )  # Try to set all bits, but only specific bits should be set
-        actuators = driver.get_actuators()
-        print(f"  Doors value after write: 0x{actuators['doors_value']:02X}")
-        print("  Expected: 0x55 - only bits 0, 2, 4, 6 should be set")
-
-        # Test 3: Testing reset register behavior
-        print("\nTesting reset register behavior...")
-
-        # First, set some values to the actuators
-        driver.set_led(200)
-        driver.set_fan(150)
-
-        # Reset only LED and fan
-        print("Resetting only LED and fan...")
-        driver.reset_actuators(True, True, False, False)
-
-        # Check if only LED and fan are reset
-        actuators = driver.get_actuators()
-        print("Actuator values after partial reset:")
-        print(f"  LED value: {actuators['led_value']} (Expected: 0)")
-        print(f"  Fan value: {actuators['fan_value']} (Expected: 0)")
-        print(f"  Heater value: {actuators['heater_value']} (Expected: unchanged)")
-        print(f"  Doors value: 0x{actuators['doors_value']:02X} (Expected: unchanged)")
-
-        # Check if reset register cleared itself
-        print("Checking if reset register cleared itself...")
-        response = driver.send_command("4FE000")  # Read reset_actuators register
-        print(f"  Reset register value: {response}")
-        print(
-            "  Expected: Value with all bits cleared (reset register should auto-clear)"
-        )
-
-        print("\nAll additional tests completed!")
-
+        return 0 if test_result else 1
+    finally:
         # Disconnect from device
         print("\nDisconnecting from device...")
         driver.disconnect()
 
-        # Now display the communication log
-        if communications:
-            display_communication(communications)
-
-        return 0
-    finally:
         # Terminate the server
         print("Stopping server...")
         server.terminate()
@@ -621,27 +473,15 @@ def main():
     if len(sys.argv) > 1:
         cmd = sys.argv[1]
 
-        if cmd == "build":
-            # Build the project
-            if build_project():
-                return 0
-            else:
-                return 1
-
-        elif cmd == "test":
-            # Run the integration test
-            return run_integration_test()
-
+        if cmd == "test":
+            # Run the unified tests
+            return run_unified_tests()
         else:
             print(f"Unknown command: {cmd}")
-            print("Usage: python run.py [build|test]")
+            print("Usage: python run.py [test]")
     else:
-        # Default to running the integration test if no command is provided
-        if not check_build():
-            print("Please build the project first with: python run.py build")
-            return 1
-
-        return run_integration_test()
+        # Default to running the unified tests if no command is provided
+        return run_unified_tests()
 
     return 0
 
