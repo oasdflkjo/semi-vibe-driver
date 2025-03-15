@@ -13,6 +13,9 @@ def test_temperature_sensor_range(driver, device):
     """Test temperature sensor across the full range (0-255)."""
     print("\n=== Testing Temperature Sensor Range (Brute Force) ===")
 
+    # driver.enable_dll_prints()
+    # driver.enable_wrapper_prints()
+
     # Get initial temperature value
     sensors = driver.get_sensors()
     if not sensors:
