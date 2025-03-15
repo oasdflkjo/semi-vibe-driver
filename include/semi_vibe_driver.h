@@ -19,6 +19,14 @@ extern "C" {
 #define EXPORT
 #endif
 
+// Component types
+#define COMPONENT_TEMPERATURE 0
+#define COMPONENT_HUMIDITY 1
+#define COMPONENT_LED 2
+#define COMPONENT_FAN 3
+#define COMPONENT_HEATER 4
+#define COMPONENT_DOORS 5
+
 // Door identifiers
 #define DOOR_1 1
 #define DOOR_2 2
@@ -193,12 +201,36 @@ EXPORT bool driver_reset_sensors(bool reset_temperature, bool reset_humidity);
 EXPORT bool driver_reset_actuators(bool reset_led, bool reset_fan, bool reset_heater, bool reset_doors);
 
 /**
+ * @brief Get power state of a specific component
+ * @param component_type Type of component (0=TEMPERATURE, 1=HUMIDITY, 2=LED, 3=FAN, 4=HEATER, 5=DOORS)
+ * @param powered Pointer to store the power state (true=powered, false=not powered)
+ * @return true if successful, false otherwise
+ */
+EXPORT bool driver_get_power_state(int component_type, bool *powered);
+
+/**
+ * @brief Get error state of a specific component
+ * @param component_type Type of component (0=TEMPERATURE, 1=HUMIDITY, 2=LED, 3=FAN, 4=HEATER, 5=DOORS)
+ * @param has_error Pointer to store the error state (true=has error, false=no error)
+ * @return true if successful, false otherwise
+ */
+EXPORT bool driver_get_error_state(int component_type, bool *has_error);
+
+/**
  * @brief Send a raw command to the device
  * @param command Command string (6 hex digits)
  * @param response Buffer to store response (must be at least 7 bytes)
  * @return true if successful, false otherwise
  */
 EXPORT bool driver_send_command(const char *command, char *response);
+
+/**
+ * @brief Set power state of a specific component
+ * @param component_type Type of component (0=TEMPERATURE, 1=HUMIDITY, 2=LED, 3=FAN, 4=HEATER, 5=DOORS)
+ * @param powered Power state to set (true=powered, false=not powered)
+ * @return true if successful, false otherwise
+ */
+EXPORT bool driver_set_power_state(int component_type, bool powered);
 
 #ifdef __cplusplus
 }

@@ -637,6 +637,100 @@ static bool write_register(uint8_t base, uint8_t offset, uint8_t value) {
 }
 
 /**
+ * @brief Get power state of a specific component
+ *
+ * @param component_type Type of component (0=TEMPERATURE, 1=HUMIDITY, 2=LED, 3=FAN, 4=HEATER, 5=DOORS)
+ * @param powered Pointer to store the power state (true=powered, false=not powered)
+ * @return true if successful, false otherwise
+ */
+EXPORT bool driver_get_power_state(int component_type, bool *powered) {
+  if (!g_driver.connected || !powered || component_type < COMPONENT_TEMPERATURE || component_type > COMPONENT_DOORS) {
+    return false;
+  }
+
+  uint8_t power_state = 0;
+  if (!read_register(BASE_MAIN, OFFSET_POWER_STATE, &power_state)) {
+    return false;
+  }
+
+  // Map component type to bit mask
+  uint8_t mask = 0;
+  switch (component_type) {
+  case COMPONENT_TEMPERATURE:
+    mask = MASK_TEMP_SENSOR;
+    break;
+  case COMPONENT_HUMIDITY:
+    mask = MASK_HUMID_SENSOR;
+    break;
+  case COMPONENT_LED:
+    mask = MASK_LED;
+    break;
+  case COMPONENT_FAN:
+    mask = MASK_FAN;
+    break;
+  case COMPONENT_HEATER:
+    mask = MASK_HEATER;
+    break;
+  case COMPONENT_DOORS:
+    mask = MASK_DOORS;
+    break;
+  default:
+    return false;
+  }
+
+  // Check if the bit is set
+  *powered = (power_state & mask) != 0;
+  return true;
+}
+
+/**
+ * @brief Get error state of a specific component
+ *
+ * @param component_type Type of component (0=TEMPERATURE, 1=HUMIDITY, 2=LED, 3=FAN, 4=HEATER, 5=DOORS)
+ * @param has_error Pointer to store the error state (true=has error, false=no error)
+ * @return true if successful, false otherwise
+ */
+EXPORT bool driver_get_error_state(int component_type, bool *has_error) {
+  if (!g_driver.connected || !has_error || component_type < COMPONENT_TEMPERATURE || component_type > COMPONENT_DOORS) {
+    return false;
+  }
+
+  uint8_t error_state = 0;
+  if (!read_register(BASE_MAIN, OFFSET_ERROR_STATE, &error_state)) {
+    return false;
+  }
+
+  // Map component type to bit mask
+  uint8_t mask = 0;
+  switch (component_type) {
+  case COMPONENT_TEMPERATURE:
+    mask = MASK_TEMP_SENSOR;
+    break;
+  case COMPONENT_HUMIDITY:
+    mask = MASK_HUMID_SENSOR;
+    break;
+  case COMPONENT_LED:
+    mask = MASK_LED;
+    break;
+  case COMPONENT_FAN:
+    mask = MASK_FAN;
+    break;
+  case COMPONENT_HEATER:
+    mask = MASK_HEATER;
+    break;
+  case COMPONENT_DOORS:
+    mask = MASK_DOORS;
+    break;
+  default:
+    return false;
+  }
+
+  // Check if the bit is set
+  *has_error = (error_state & mask) != 0;
+  return true;
+}
+
+/**
  * @brief Send a raw command to the device
  *
  * @param command Command string
@@ -687,5 +781,74 @@ static void log_message(const char *format, ...) {
     va_end(args);
 
     g_driver.log_callback(buffer);
+  }
+}
+
+/**
+ * @brief Set power state of a specific component
+ *
+ * @param component_type Type of component (0=TEMPERATURE, 1=HUMIDITY, 2=LED, 3=FAN, 4=HEATER, 5=DOORS)
+ * @param powered Power state to set (true=powered, false=not powered)
+ * @return true if successful, false otherwise
+ */
+EXPORT bool driver_set_power_state(int component_type, bool powered) {
+  if (!g_driver.connected || component_type < COMPONENT_TEMPERATURE || component_type > COMPONENT_DOORS) {
+    return false;
+  }
+
+  // For sensors
+  if (component_type == COMPONENT_TEMPERATURE || component_type == COMPONENT_HUMIDITY) {
+    // Read current power state to preserve the other sensor's state
+    uint8_t current_power_state = 0;
+    if (!read_register(BASE_CONTROL, OFFSET_POWER_SENSORS, &current_power_state)) {
+      return false;
+    }
+
+    bool temperature_on = (current_power_state & MASK_TEMP_SENSOR) != 0;
+    bool humidity_on = (current_power_state & MASK_HUMID_SENSOR) != 0;
+
+    // Update the requested component's state
+    if (component_type == COMPONENT_TEMPERATURE) {
+      temperature_on = powered;
+    } else { // COMPONENT_HUMIDITY
+      humidity_on = powered;
+    }
+
+    // Set the new power state
+    return driver_power_sensors(temperature_on, humidity_on);
+  }
+  // For actuators
+  else {
+    // Read current power state to preserve other actuators' states
+    uint8_t current_power_state = 0;
+    if (!read_register(BASE_CONTROL, OFFSET_POWER_ACTUATORS, &current_power_state)) {
+      return false;
+    }
+
+    bool led_on = (current_power_state & MASK_LED) != 0;
+    bool fan_on = (current_power_state & MASK_FAN) != 0;
+    bool heater_on = (current_power_state & MASK_HEATER) != 0;
+    bool doors_on = (current_power_state & MASK_DOORS) != 0;
+
+    // Update the requested component's state
+    switch (component_type) {
+    case COMPONENT_LED:
+      led_on = powered;
+      break;
+    case COMPONENT_FAN:
+      fan_on = powered;
+      break;
+    case COMPONENT_HEATER:
+      heater_on = powered;
+      break;
+    case COMPONENT_DOORS:
+      doors_on = powered;
+      break;
+    default:
+      return false;
+    }
+
+    // Set the new power state
+    return driver_power_actuators(led_on, fan_on, heater_on, doors_on);
   }
 }

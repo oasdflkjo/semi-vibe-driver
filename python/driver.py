@@ -20,6 +20,14 @@ DOOR_4 = 4
 DOOR_CLOSED = 0
 DOOR_OPEN = 1
 
+# Component types
+COMPONENT_TEMPERATURE = 0
+COMPONENT_HUMIDITY = 1
+COMPONENT_LED = 2
+COMPONENT_FAN = 3
+COMPONENT_HEATER = 4
+COMPONENT_DOORS = 5
+
 
 # Define the structures to match the C structures
 class SensorData(Structure):
@@ -124,6 +132,15 @@ class DriverDLL:
 
         self.dll.driver_reset_actuators.argtypes = [c_bool, c_bool, c_bool, c_bool]
         self.dll.driver_reset_actuators.restype = c_bool
+
+        self.dll.driver_get_power_state.argtypes = [c_int, POINTER(c_bool)]
+        self.dll.driver_get_power_state.restype = c_bool
+
+        self.dll.driver_get_error_state.argtypes = [c_int, POINTER(c_bool)]
+        self.dll.driver_get_error_state.restype = c_bool
+
+        self.dll.driver_set_power_state.argtypes = [c_int, c_bool]
+        self.dll.driver_set_power_state.restype = c_bool
 
         self.dll.driver_send_command.argtypes = [c_char_p, c_char_p]
         self.dll.driver_send_command.restype = c_bool
@@ -339,6 +356,46 @@ class DriverDLL:
         return self.dll.driver_reset_actuators(
             reset_led, reset_fan, reset_heater, reset_doors
         )
+
+    def get_power_state(self, component_type):
+        """Get power state of a specific component.
+
+        Args:
+            component_type: Component type (COMPONENT_TEMPERATURE, COMPONENT_HUMIDITY, etc.)
+
+        Returns:
+            bool: True if powered, False if not powered, None if failed
+        """
+        powered = c_bool()
+        if self.dll.driver_get_power_state(component_type, ctypes.byref(powered)):
+            return powered.value
+        return None
+
+    def get_error_state(self, component_type):
+        """Get error state of a specific component.
+
+        Args:
+            component_type: Component type (COMPONENT_TEMPERATURE, COMPONENT_HUMIDITY, etc.)
+
+        Returns:
+            bool: True if error, False if no error, None if failed
+        """
+        has_error = c_bool()
+        if self.dll.driver_get_error_state(component_type, ctypes.byref(has_error)):
+            return has_error.value
+        return None
+
+    def set_power_state(self, component_type, powered):
+        """Set power state of a specific component.
+
+        Args:
+            component_type: Component type (COMPONENT_TEMPERATURE, COMPONENT_HUMIDITY, etc.)
+            powered: True if powered, False if not powered
+
+        Returns:
+            bool: True if successful
+        """
+        return self.dll.driver_set_power_state(component_type, powered)
 
     def send_command(self, command, response_buffer):
         """Send a raw command to the device.
