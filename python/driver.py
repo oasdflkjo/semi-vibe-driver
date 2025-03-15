@@ -1,10 +1,43 @@
 """
-Driver script for the Semi-Vibe-Driver.
-This script provides a simple interface to communicate with the device via sockets.
+Python wrapper for the Semi-Vibe-Driver DLL.
+This script provides a simple interface to communicate with the device via the DLL.
 """
 
-import socket
-import json
+import ctypes
+import os
+import sys
+from ctypes import c_bool, c_char_p, c_uint8, c_int, CFUNCTYPE, Structure, POINTER
+
+# Define the callback function type
+LOGCALLBACK = CFUNCTYPE(None, c_char_p)
+
+
+# Define the structures
+class SensorData(Structure):
+    _fields_ = [
+        ("temperature_id", c_uint8),
+        ("temperature_value", c_uint8),
+        ("humidity_id", c_uint8),
+        ("humidity_value", c_uint8),
+    ]
+
+
+class ActuatorData(Structure):
+    _fields_ = [
+        ("led_value", c_uint8),
+        ("fan_value", c_uint8),
+        ("heater_value", c_uint8),
+        ("doors_value", c_uint8),
+    ]
+
+
+class DeviceStatus(Structure):
+    _fields_ = [
+        ("connected", c_bool),
+        ("sensors_powered", c_bool),
+        ("actuators_powered", c_bool),
+        ("has_errors", c_bool),
+    ]
 
 
 class Driver:
@@ -16,9 +49,65 @@ class Driver:
         Args:
             print_callback: Optional function to handle print messages
         """
-        self.socket = None
-        self.connected = False
         self.print_callback = print_callback or print
+        self.dll = None
+        self.log_callback = None
+        self.initialized = False
+        self.connected = False
+
+        # Load the DLL
+        dll_path = os.path.join(
+            os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+            "build",
+            "bin",
+            "Debug",
+            "semi_vibe_driver.dll",
+        )
+        self._log(f"Looking for DLL at: {dll_path}")
+
+        try:
+            self.dll = ctypes.CDLL(dll_path)
+            self._log("DLL loaded successfully")
+
+            # Define function prototypes
+            self.dll.driver_init.argtypes = [LOGCALLBACK]
+            self.dll.driver_init.restype = c_bool
+
+            self.dll.driver_connect.argtypes = [c_char_p, c_int]
+            self.dll.driver_connect.restype = c_bool
+
+            self.dll.driver_disconnect.argtypes = []
+            self.dll.driver_disconnect.restype = c_bool
+
+            self.dll.driver_get_status.argtypes = [POINTER(DeviceStatus)]
+            self.dll.driver_get_status.restype = c_bool
+
+            self.dll.driver_get_sensors.argtypes = [POINTER(SensorData)]
+            self.dll.driver_get_sensors.restype = c_bool
+
+            self.dll.driver_get_actuators.argtypes = [POINTER(ActuatorData)]
+            self.dll.driver_get_actuators.restype = c_bool
+
+            self.dll.driver_set_led.argtypes = [c_uint8]
+            self.dll.driver_set_led.restype = c_bool
+
+            self.dll.driver_set_fan.argtypes = [c_uint8]
+            self.dll.driver_set_fan.restype = c_bool
+
+            self.dll.driver_set_heater.argtypes = [c_uint8]
+            self.dll.driver_set_heater.restype = c_bool
+
+            self.dll.driver_set_doors.argtypes = [c_uint8]
+            self.dll.driver_set_doors.restype = c_bool
+
+            # Create log callback
+            def log_callback_wrapper(message):
+                self.print_callback(f"[DRIVER] {message.decode('utf-8')}")
+
+            self.log_callback = LOGCALLBACK(log_callback_wrapper)
+        except Exception as e:
+            self._log(f"Failed to load DLL: {e}")
+            self.dll = None
 
     def _log(self, message):
         """Log a message using the callback or print."""
@@ -26,105 +115,173 @@ class Driver:
 
     def init(self):
         """Initialize the driver."""
-        self._log("Initializing driver")
-        return True
+        if self.initialized:
+            self._log("Driver is already initialized")
+            return True
+
+        if not self.dll:
+            self._log("DLL not loaded")
+            return False
+
+        if self.dll.driver_init(self.log_callback):
+            self.initialized = True
+            self._log("Driver initialized")
+            return True
+        else:
+            self._log("Failed to initialize driver")
+            return False
 
     def connect(self, host="localhost", port=8989):
         """Connect to the device."""
         if self.connected:
+            self._log("Driver is already connected")
             return True
 
-        try:
-            self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            self.socket.connect((host, port))
+        if not self.initialized:
+            self._log("Driver is not initialized")
+            return False
+
+        if not self.dll:
+            self._log("DLL not loaded")
+            return False
+
+        host_bytes = host.encode("utf-8")
+        if self.dll.driver_connect(host_bytes, port):
             self.connected = True
             self._log(f"Connected to device at {host}:{port}")
             return True
-        except Exception as e:
-            self._log(f"Failed to connect to device: {e}")
+        else:
+            self._log("Failed to connect to device")
             return False
 
     def disconnect(self):
         """Disconnect from the device."""
         if not self.connected:
+            self._log("Driver is not connected")
             return True
 
-        try:
-            self.socket.close()
+        if not self.dll:
+            self._log("DLL not loaded")
+            return False
+
+        if self.dll.driver_disconnect():
             self.connected = False
             self._log("Disconnected from device")
             return True
-        except Exception as e:
-            self._log(f"Failed to disconnect from device: {e}")
+        else:
+            self._log("Failed to disconnect from device")
             return False
-
-    def _send_command(self, command, data=None):
-        """Send a command to the device and get the response."""
-        if not self.connected:
-            self._log("Not connected to device")
-            return None
-
-        message = {"command": command}
-        if data:
-            message["data"] = data
-
-        try:
-            # Convert message to JSON and send
-            message_str = json.dumps(message)
-            self._log(f"Sending: {message_str}")
-            self.socket.sendall(f"{message_str}\n".encode("utf-8"))
-
-            # Receive response
-            response = self.socket.recv(1024).decode("utf-8").strip()
-            self._log(f"Received: {response}")
-
-            # Parse response
-            try:
-                return json.loads(response)
-            except json.JSONDecodeError:
-                self._log(f"Failed to parse response: {response}")
-                return None
-        except Exception as e:
-            self._log(f"Communication error: {e}")
-            return None
 
     def get_status(self):
         """Get device status."""
-        response = self._send_command("GET_STATUS")
-        if not response or "status" not in response:
+        if not self.connected:
+            self._log("Driver is not connected")
             return None
-        return response["status"]
+
+        if not self.dll:
+            self._log("DLL not loaded")
+            return None
+
+        status = DeviceStatus()
+        if self.dll.driver_get_status(ctypes.byref(status)):
+            return {
+                "connected": status.connected,
+                "sensors_powered": status.sensors_powered,
+                "actuators_powered": status.actuators_powered,
+                "has_errors": status.has_errors,
+            }
+        else:
+            self._log("Failed to get device status")
+            return None
 
     def get_sensors(self):
         """Get sensor data."""
-        response = self._send_command("GET_SENSORS")
-        if not response or "sensors" not in response:
+        if not self.connected:
+            self._log("Driver is not connected")
             return None
-        return response["sensors"]
+
+        if not self.dll:
+            self._log("DLL not loaded")
+            return None
+
+        data = SensorData()
+        if self.dll.driver_get_sensors(ctypes.byref(data)):
+            return {
+                "temperature_id": data.temperature_id,
+                "temperature_value": data.temperature_value,
+                "humidity_id": data.humidity_id,
+                "humidity_value": data.humidity_value,
+            }
+        else:
+            self._log("Failed to get sensor data")
+            return None
 
     def get_actuators(self):
         """Get actuator data."""
-        response = self._send_command("GET_ACTUATORS")
-        if not response or "actuators" not in response:
+        if not self.connected:
+            self._log("Driver is not connected")
             return None
-        return response["actuators"]
+
+        if not self.dll:
+            self._log("DLL not loaded")
+            return None
+
+        data = ActuatorData()
+        if self.dll.driver_get_actuators(ctypes.byref(data)):
+            return {
+                "led_value": data.led_value,
+                "fan_value": data.fan_value,
+                "heater_value": data.heater_value,
+                "doors_value": data.doors_value,
+            }
+        else:
+            self._log("Failed to get actuator data")
+            return None
 
     def set_led(self, value):
         """Set LED value."""
-        response = self._send_command("SET_LED", {"value": value})
-        return response and response.get("success", False)
+        if not self.connected:
+            self._log("Driver is not connected")
+            return False
+
+        if not self.dll:
+            self._log("DLL not loaded")
+            return False
+
+        return self.dll.driver_set_led(value)
 
     def set_fan(self, value):
         """Set fan value."""
-        response = self._send_command("SET_FAN", {"value": value})
-        return response and response.get("success", False)
+        if not self.connected:
+            self._log("Driver is not connected")
+            return False
+
+        if not self.dll:
+            self._log("DLL not loaded")
+            return False
+
+        return self.dll.driver_set_fan(value)
 
     def set_heater(self, value):
         """Set heater value."""
-        response = self._send_command("SET_HEATER", {"value": value})
-        return response and response.get("success", False)
+        if not self.connected:
+            self._log("Driver is not connected")
+            return False
+
+        if not self.dll:
+            self._log("DLL not loaded")
+            return False
+
+        return self.dll.driver_set_heater(value)
 
     def set_doors(self, value):
         """Set doors value."""
-        response = self._send_command("SET_DOORS", {"value": value})
-        return response and response.get("success", False)
+        if not self.connected:
+            self._log("Driver is not connected")
+            return False
+
+        if not self.dll:
+            self._log("DLL not loaded")
+            return False
+
+        return self.dll.driver_set_doors(value)

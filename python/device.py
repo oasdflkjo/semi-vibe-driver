@@ -1,16 +1,45 @@
 """
-Simulated device for the Semi-Vibe-Device.
-This script provides a simple device simulator that communicates via sockets.
+Python wrapper for the Semi-Vibe-Device DLL.
+This script provides a simple interface to communicate with the device via the DLL.
 """
 
-import socket
-import threading
-import json
-import time
+import ctypes
+import os
+import sys
+from ctypes import c_bool, c_char_p, c_uint8, CFUNCTYPE, Structure, POINTER
+
+# Define the callback function type
+LOGCALLBACK = CFUNCTYPE(None, c_char_p)
+
+
+# Define the DeviceMemory structure
+class DeviceMemory(Structure):
+    _fields_ = [
+        # MAIN
+        ("connected_device", c_uint8),
+        ("reserved_main", c_uint8),
+        ("power_state", c_uint8),
+        ("error_state", c_uint8),
+        # SENSOR
+        ("sensor_a_id", c_uint8),
+        ("sensor_a_reading", c_uint8),
+        ("sensor_b_id", c_uint8),
+        ("sensor_b_reading", c_uint8),
+        # ACTUATOR
+        ("actuator_a", c_uint8),  # LED
+        ("actuator_b", c_uint8),  # Fan
+        ("actuator_c", c_uint8),  # Heater
+        ("actuator_d", c_uint8),  # Doors
+        # CONTROL
+        ("power_sensors", c_uint8),
+        ("power_actuators", c_uint8),
+        ("reset_sensors", c_uint8),
+        ("reset_actuators", c_uint8),
+    ]
 
 
 class Device:
-    """Semi-Vibe-Device simulator class."""
+    """Semi-Vibe-Device simulator wrapper class."""
 
     def __init__(self, print_callback=None):
         """Initialize the device simulator.
@@ -18,33 +47,56 @@ class Device:
         Args:
             print_callback: Optional function to handle print messages
         """
-        self.server_socket = None
-        self.client_socket = None
-        self.running = False
-        self.server_thread = None
         self.print_callback = print_callback or print
+        self.dll = None
+        self.log_callback = None
+        self.running = False
 
-        # Device state
-        self.state = {
-            "status": {
-                "connected": False,
-                "sensors_powered": True,
-                "actuators_powered": True,
-                "has_errors": False,
-            },
-            "sensors": {
-                "temperature_id": 0x01,
-                "temperature_value": 25,
-                "humidity_id": 0x02,
-                "humidity_value": 50,
-            },
-            "actuators": {
-                "led_value": 0,
-                "fan_value": 0,
-                "heater_value": 0,
-                "doors_value": 0,
-            },
-        }
+        # Load the DLL
+        dll_path = os.path.join(
+            os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+            "build",
+            "bin",
+            "Debug",
+            "semi_vibe_device.dll",
+        )
+        self._log(f"Looking for DLL at: {dll_path}")
+
+        try:
+            self.dll = ctypes.CDLL(dll_path)
+            self._log("DLL loaded successfully")
+
+            # Define function prototypes
+            self.dll.device_init.argtypes = [LOGCALLBACK]
+            self.dll.device_init.restype = c_bool
+
+            self.dll.device_start.argtypes = []
+            self.dll.device_start.restype = c_bool
+
+            self.dll.device_stop.argtypes = []
+            self.dll.device_stop.restype = c_bool
+
+            self.dll.device_get_memory.argtypes = [POINTER(DeviceMemory)]
+            self.dll.device_get_memory.restype = c_bool
+
+            self.dll.device_set_memory.argtypes = [POINTER(DeviceMemory)]
+            self.dll.device_set_memory.restype = c_bool
+
+            self.dll.device_process_command.argtypes = [c_char_p, c_char_p]
+            self.dll.device_process_command.restype = c_bool
+
+            # Create log callback
+            def log_callback_wrapper(message):
+                self.print_callback(f"[DEVICE] {message.decode('utf-8')}")
+
+            self.log_callback = LOGCALLBACK(log_callback_wrapper)
+
+            # Initialize the device
+            if not self.dll.device_init(self.log_callback):
+                self._log("Failed to initialize device")
+        except Exception as e:
+            self._log(f"Failed to load DLL: {e}")
+            self.dll = None
 
     def _log(self, message):
         """Log a message using the callback or print."""
@@ -56,23 +108,16 @@ class Device:
             self._log("Server already running")
             return True
 
-        try:
-            self.server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            self.server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-            self.server_socket.bind((host, port))
-            self.server_socket.listen(1)
+        if not self.dll:
+            self._log("DLL not loaded")
+            return False
 
+        if self.dll.device_start():
             self.running = True
             self._log(f"Server started on {host}:{port}")
-
-            # Start server in a separate thread
-            self.server_thread = threading.Thread(target=self._server_loop)
-            self.server_thread.daemon = True
-            self.server_thread.start()
-
             return True
-        except Exception as e:
-            self._log(f"Failed to start server: {e}")
+        else:
+            self._log("Failed to start device")
             return False
 
     def stop(self):
@@ -80,183 +125,174 @@ class Device:
         if not self.running:
             return True
 
-        try:
-            self.running = False
-
-            # Close client socket if connected
-            if self.client_socket:
-                self.client_socket.close()
-                self.client_socket = None
-
-            # Close server socket
-            if self.server_socket:
-                self.server_socket.close()
-                self.server_socket = None
-
-            # Wait for server thread to finish
-            if self.server_thread:
-                self.server_thread.join(timeout=1)
-                self.server_thread = None
-
-            self._log("Server stopped")
-            return True
-        except Exception as e:
-            self._log(f"Failed to stop server: {e}")
+        if not self.dll:
+            self._log("DLL not loaded")
             return False
 
-    def _server_loop(self):
-        """Main server loop."""
-        self._log("Server loop started")
-
-        while self.running:
-            try:
-                # Wait for a connection
-                self._log("Waiting for connection...")
-                self.server_socket.settimeout(
-                    1.0
-                )  # 1 second timeout to check running flag
-                try:
-                    self.client_socket, addr = self.server_socket.accept()
-                    self.state["status"]["connected"] = True
-                    self._log(f"Connection from {addr}")
-                except socket.timeout:
-                    continue
-                except Exception as e:
-                    if self.running:
-                        self._log(f"Accept error: {e}")
-                    continue
-
-                # Handle client communication
-                self.client_socket.settimeout(
-                    None
-                )  # No timeout for client communication
-                while self.running and self.client_socket:
-                    try:
-                        # Receive data
-                        data = self.client_socket.recv(1024)
-                        if not data:
-                            self._log("Client disconnected")
-                            break
-
-                        # Process command
-                        message = data.decode("utf-8").strip()
-                        self._log(f"Received: {message}")
-
-                        # Parse and handle command
-                        try:
-                            command = json.loads(message)
-                            response = self._handle_command(command)
-                            response_str = json.dumps(response)
-
-                            # Send response
-                            self._log(f"Sent response: {response_str}")
-                            self.client_socket.sendall(
-                                f"{response_str}\n".encode("utf-8")
-                            )
-                        except json.JSONDecodeError:
-                            self._log(f"Invalid JSON: {message}")
-                            error_response = json.dumps({"error": "Invalid JSON"})
-                            self.client_socket.sendall(
-                                f"{error_response}\n".encode("utf-8")
-                            )
-                    except Exception as e:
-                        self._log(f"Client communication error: {e}")
-                        break
-
-                # Close client socket
-                if self.client_socket:
-                    self.client_socket.close()
-                    self.client_socket = None
-                    self.state["status"]["connected"] = False
-            except Exception as e:
-                if self.running:
-                    self._log(f"Server error: {e}")
-                    time.sleep(1)  # Prevent tight loop on error
-
-        self._log("Server loop ended")
-
-    def _handle_command(self, command):
-        """Handle a command from the client."""
-        cmd = command.get("command", "").upper()
-        data = command.get("data", {})
-
-        if cmd == "GET_STATUS":
-            return {"status": self.state["status"]}
-
-        elif cmd == "GET_SENSORS":
-            return {"sensors": self.state["sensors"]}
-
-        elif cmd == "GET_ACTUATORS":
-            return {"actuators": self.state["actuators"]}
-
-        elif cmd == "SET_LED":
-            value = data.get("value", 0)
-            if 0 <= value <= 255:
-                self.state["actuators"]["led_value"] = value
-                return {"success": True}
-            return {"success": False, "error": "Invalid value"}
-
-        elif cmd == "SET_FAN":
-            value = data.get("value", 0)
-            if 0 <= value <= 255:
-                self.state["actuators"]["fan_value"] = value
-                return {"success": True}
-            return {"success": False, "error": "Invalid value"}
-
-        elif cmd == "SET_HEATER":
-            value = data.get("value", 0)
-            if 0 <= value <= 255:
-                self.state["actuators"]["heater_value"] = value
-                return {"success": True}
-            return {"success": False, "error": "Invalid value"}
-
-        elif cmd == "SET_DOORS":
-            value = data.get("value", 0)
-            if 0 <= value <= 255:
-                self.state["actuators"]["doors_value"] = value
-                return {"success": True}
-            return {"success": False, "error": "Invalid value"}
-
+        if self.dll.device_stop():
+            self.running = False
+            self._log("Server stopped")
+            return True
         else:
-            return {"success": False, "error": f"Unknown command: {cmd}"}
+            self._log("Failed to stop device")
+            return False
 
-    # Direct access methods (for testing without sockets)
-    def get_status(self):
-        """Get device status directly."""
-        return self.state["status"]
+    def get_memory(self):
+        """Get the current device memory."""
+        if not self.dll:
+            self._log("DLL not loaded")
+            return None
 
-    def get_sensors(self):
-        """Get sensor data directly."""
-        return self.state["sensors"]
+        memory = DeviceMemory()
+        if self.dll.device_get_memory(ctypes.byref(memory)):
+            return memory
+        else:
+            self._log("Failed to get device memory")
+            return None
 
-    def get_actuators(self):
-        """Get actuator data directly."""
-        return self.state["actuators"]
+    def set_memory(self, memory):
+        """Set the device memory directly."""
+        if not self.dll:
+            self._log("DLL not loaded")
+            return False
+
+        if self.dll.device_set_memory(ctypes.byref(memory)):
+            return True
+        else:
+            self._log("Failed to set device memory")
+            return False
+
+    def process_command(self, command):
+        """Process a command manually."""
+        if not self.dll:
+            self._log("DLL not loaded")
+            return None
+
+        command_bytes = command.encode("utf-8")
+        response = ctypes.create_string_buffer(7)
+        if self.dll.device_process_command(command_bytes, response):
+            return response.value.decode("utf-8")
+        else:
+            self._log("Failed to process command")
+            return None
+
+    # Convenience methods to access device state
+    @property
+    def state(self):
+        """Get the current device state."""
+        memory = self.get_memory()
+        if not memory:
+            return {
+                "status": {
+                    "connected": False,
+                    "sensors_powered": False,
+                    "actuators_powered": False,
+                    "has_errors": False,
+                },
+                "sensors": {
+                    "temperature_id": 1,
+                    "temperature_value": 25,
+                    "humidity_id": 2,
+                    "humidity_value": 50,
+                },
+                "actuators": {
+                    "led_value": 0,
+                    "fan_value": 0,
+                    "heater_value": 0,
+                    "doors_value": 0,
+                },
+            }
+
+        return {
+            "status": {
+                "connected": bool(memory.connected_device),
+                "sensors_powered": bool(memory.power_sensors),
+                "actuators_powered": bool(memory.power_actuators),
+                "has_errors": bool(memory.error_state),
+            },
+            "sensors": {
+                "temperature_id": memory.sensor_a_id,
+                "temperature_value": memory.sensor_a_reading,
+                "humidity_id": memory.sensor_b_id,
+                "humidity_value": memory.sensor_b_reading,
+            },
+            "actuators": {
+                "led_value": memory.actuator_a,
+                "fan_value": memory.actuator_b,
+                "heater_value": memory.actuator_c,
+                "doors_value": memory.actuator_d,
+            },
+        }
+
+    @state.setter
+    def state(self, new_state):
+        """Set the device state directly (for testing)."""
+        if not self.dll:
+            self._log("DLL not loaded")
+            return
+
+        # Get current memory
+        memory = self.get_memory()
+        if not memory:
+            self._log("Failed to get device memory")
+            return
+
+        # Update memory with new state
+        if "sensors" in new_state:
+            sensors = new_state["sensors"]
+            if "temperature_value" in sensors:
+                temp_value = sensors["temperature_value"]
+                self._log(f"Setting temperature value to {temp_value}")
+                memory.sensor_a_reading = temp_value
+
+            if "humidity_value" in sensors:
+                humid_value = sensors["humidity_value"]
+                self._log(f"Setting humidity value to {humid_value}")
+                memory.sensor_b_reading = humid_value
+
+        if "actuators" in new_state:
+            actuators = new_state["actuators"]
+            if "led_value" in actuators:
+                memory.actuator_a = actuators["led_value"]
+            if "fan_value" in actuators:
+                memory.actuator_b = actuators["fan_value"]
+            if "heater_value" in actuators:
+                memory.actuator_c = actuators["heater_value"]
+            if "doors_value" in actuators:
+                memory.actuator_d = actuators["doors_value"]
+
+        # Write memory back to device
+        self._log(
+            f"Writing memory back to device: temp={memory.sensor_a_reading}, humid={memory.sensor_b_reading}"
+        )
+        result = self.set_memory(memory)
+        self._log(f"Set memory result: {result}")
+
+        # Verify the memory was updated
+        updated_memory = self.get_memory()
+        if updated_memory:
+            self._log(
+                f"Verified memory: temp={updated_memory.sensor_a_reading}, humid={updated_memory.sensor_b_reading}"
+            )
+        else:
+            self._log("Failed to verify memory update")
 
     def set_led(self, value):
-        """Set LED value directly."""
-        if 0 <= value <= 255:
-            self.state["actuators"]["led_value"] = value
-            return True
-        return False
+        """Set the LED value directly."""
+        self._log(f"Setting LED value to {value}")
 
-    def set_fan(self, value):
-        """Set fan value directly."""
-        if 0 <= value <= 255:
-            self.state["actuators"]["fan_value"] = value
-            return True
-        return False
+        # Get current state
+        current_state = self.state
 
-    def set_heater(self, value):
-        """Set heater value directly."""
-        if 0 <= value <= 255:
-            self.state["actuators"]["heater_value"] = value
-            return True
-        return False
+        # Update LED value
+        current_state["actuators"]["led_value"] = value
 
-    def set_doors(self, value):
-        """Set doors value directly."""
-        if 0 <= value <= 255:
-            self.state["actuators"]["doors_value"] = value
-            return True
-        return False
+        # Set the updated state
+        self.state = current_state
+
+        # Verify the update
+        updated_state = self.state
+        led_value = updated_state["actuators"]["led_value"]
+        self._log(f"Verified LED value: {led_value}")
+
+        return led_value == value

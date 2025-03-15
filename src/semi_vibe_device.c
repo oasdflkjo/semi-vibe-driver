@@ -178,6 +178,16 @@ EXPORT bool device_get_memory(DeviceMemory *memory) {
   return true;
 }
 
+EXPORT bool device_set_memory(const DeviceMemory *memory) {
+  if (!memory) {
+    return false;
+  }
+
+  memcpy(&g_memory, memory, sizeof(DeviceMemory));
+  log_message("Device memory updated directly for testing");
+  return true;
+}
+
 EXPORT bool device_process_command(const char *command, char *response) {
   if (!command || !response) {
     return false;

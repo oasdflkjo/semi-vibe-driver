@@ -24,7 +24,21 @@ def test_temperature_sensor_range(driver, device):
     print("Testing all temperature values from 0 to 255...")
     for test_value in range(256):
         # Set temperature directly in the device
-        device.state["sensors"]["temperature_value"] = test_value
+        print(f"Setting temperature value to {test_value}...")
+
+        # Get current state
+        current_state = device.state
+        print(
+            f"Current state before update: {current_state['sensors']['temperature_value']}"
+        )
+
+        # Update state
+        current_state["sensors"]["temperature_value"] = test_value
+        device.state = current_state
+
+        # Verify the state was updated
+        updated_state = device.state
+        print(f"Updated state: {updated_state['sensors']['temperature_value']}")
 
         # Verify the value through the driver
         sensors = driver.get_sensors()
@@ -34,6 +48,7 @@ def test_temperature_sensor_range(driver, device):
             failed_values.append(test_value)
             continue
 
+        print(f"Driver reports temperature value: {sensors['temperature_value']}")
         if sensors["temperature_value"] != test_value:
             print(
                 f"❌ Temperature value mismatch: expected {test_value}, got {sensors['temperature_value']}"
@@ -48,7 +63,9 @@ def test_temperature_sensor_range(driver, device):
 
     # Reset temperature to initial value
     print(f"Resetting temperature to initial value {initial_value}...")
-    device.state["sensors"]["temperature_value"] = initial_value
+    current_state = device.state
+    current_state["sensors"]["temperature_value"] = initial_value
+    device.state = current_state
 
     if all_passed:
         print("✅ Temperature sensor range test passed for all 256 values")
@@ -78,7 +95,21 @@ def test_humidity_sensor_range(driver, device):
     print("Testing all humidity values from 0 to 255...")
     for test_value in range(256):
         # Set humidity directly in the device
-        device.state["sensors"]["humidity_value"] = test_value
+        print(f"Setting humidity value to {test_value}...")
+
+        # Get current state
+        current_state = device.state
+        print(
+            f"Current state before update: {current_state['sensors']['humidity_value']}"
+        )
+
+        # Update state
+        current_state["sensors"]["humidity_value"] = test_value
+        device.state = current_state
+
+        # Verify the state was updated
+        updated_state = device.state
+        print(f"Updated state: {updated_state['sensors']['humidity_value']}")
 
         # Verify the value through the driver
         sensors = driver.get_sensors()
@@ -88,6 +119,7 @@ def test_humidity_sensor_range(driver, device):
             failed_values.append(test_value)
             continue
 
+        print(f"Driver reports humidity value: {sensors['humidity_value']}")
         if sensors["humidity_value"] != test_value:
             print(
                 f"❌ Humidity value mismatch: expected {test_value}, got {sensors['humidity_value']}"
@@ -102,7 +134,9 @@ def test_humidity_sensor_range(driver, device):
 
     # Reset humidity to initial value
     print(f"Resetting humidity to initial value {initial_value}...")
-    device.state["sensors"]["humidity_value"] = initial_value
+    current_state = device.state
+    current_state["sensors"]["humidity_value"] = initial_value
+    device.state = current_state
 
     if all_passed:
         print("✅ Humidity sensor range test passed for all 256 values")

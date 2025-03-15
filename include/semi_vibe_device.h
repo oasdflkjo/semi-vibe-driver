@@ -1,15 +1,24 @@
 /**
  * @file semi_vibe_device.h
- * @brief Header file for the Semi-Vibe-Device simulator
+ * @brief Interface for the Semi-Vibe-Device simulator
  */
 
 #ifndef SEMI_VIBE_DEVICE_H
 #define SEMI_VIBE_DEVICE_H
 
-#define EXPORT __declspec(dllexport)
-
 #include <stdbool.h>
 #include <stdint.h>
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+// Define export macro
+#ifdef _WIN32
+#define EXPORT __declspec(dllexport)
+#else
+#define EXPORT
+#endif
 
 /**
  * @brief Callback function type for logging messages from the device
@@ -85,5 +94,17 @@ EXPORT bool device_get_memory(DeviceMemory *memory);
  * otherwise
  */
 EXPORT bool device_process_command(const char *command, char *response);
+
+/**
+ * @brief Set the device memory directly (for testing purposes only)
+ *
+ * @param memory Pointer to memory structure with new values
+ * @return EXPORT true if successful, false otherwise
+ */
+EXPORT bool device_set_memory(const DeviceMemory *memory);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* SEMI_VIBE_DEVICE_H */
