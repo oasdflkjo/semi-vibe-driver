@@ -51,7 +51,7 @@ A handmade testing framework (`test_runner.py`) provides:
 
 ### 4. Testing Application
 
-The top layer is a testing application (`run.py`) that:
+The top layer is a testing application (`run_tests.py`) that:
 
 - Initializes the device and driver
 - Establishes connections
