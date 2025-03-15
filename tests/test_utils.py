@@ -82,197 +82,175 @@ def is_server_ready(host="localhost", port=8989, max_attempts=10):
 
 
 def load_device_dll(device_dll_path=None):
-    """Load the device DLL.
-
-    Args:
-        device_dll_path: Optional path to the DLL file
-
-    Returns:
-        DeviceDLL instance or None if failed
-    """
+    """Load the device DLL with error handling."""
     if device_dll_path is None:
-        # Get the default path
-        base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        # Get the path to the DLL
         device_dll_path = os.path.join(
-            base_dir, "build", "bin", "Debug", "semi_vibe_device.dll"
+            os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+            "build",
+            "bin",
+            "Debug",
+            "semi_vibe_device.dll",
         )
 
-    print_func(f"Device DLL path: {device_dll_path}")
-
-    # Check if DLL exists
-    if not os.path.exists(device_dll_path):
-        print_func(f"❌ Device DLL not found at {device_dll_path}")
-        return None
-
-    # Load the device DLL
     try:
+        # Load the device DLL
         device = DeviceDLL(device_dll_path)
-        print_func("✅ Device DLL loaded successfully")
+        device.set_log_callback(device_log_callback)
+        print_func("[OK] Device DLL loaded successfully")
         return device
     except Exception as e:
-        print_func(f"❌ Failed to load device DLL: {str(e)}")
+        print_func(f"ERROR loading device DLL: {str(e)}")
         traceback.print_exc()
         return None
 
 
 def initialize_device(device):
-    """Initialize the device.
+    """Initialize the device with error handling."""
+    if not device:
+        print_func("ERROR: Device DLL not loaded")
+        return False
 
-    Args:
-        device: DeviceDLL instance
-
-    Returns:
-        bool: True if successful
-    """
     try:
-        if not device.init(device_log_callback):
-            print_func("❌ Failed to initialize device")
+        # Initialize the device
+        result = device.initialize()
+        if result:
+            print_func("[OK] Device initialized successfully")
+            return True
+        else:
+            print_func("ERROR initializing device")
             return False
-        print_func("✅ Device initialized successfully")
-        return True
     except Exception as e:
-        print_func(f"❌ Error during device initialization: {str(e)}")
+        print_func(f"ERROR initializing device: {str(e)}")
         traceback.print_exc()
         return False
 
 
 def start_device(device):
-    """Start the device server.
+    """Start the device server with error handling."""
+    if not device:
+        print_func("ERROR: Device DLL not loaded")
+        return False
 
-    Args:
-        device: DeviceDLL instance
-
-    Returns:
-        bool: True if successful
-    """
     try:
-        if not device.start():
-            print_func("❌ Failed to start device server")
+        # Start the device server
+        result = device.start_server()
+        if result:
+            print_func("[OK] Device server started successfully")
+            return True
+        else:
+            print_func("ERROR starting device server")
             return False
-        print_func("✅ Device server started successfully")
-        return True
     except Exception as e:
-        print_func(f"❌ Error during device server start: {str(e)}")
+        print_func(f"ERROR starting device server: {str(e)}")
         traceback.print_exc()
         return False
 
 
 def stop_device(device):
-    """Stop the device server.
+    """Stop the device server with error handling."""
+    if not device:
+        print_func("ERROR: Device DLL not loaded")
+        return False
 
-    Args:
-        device: DeviceDLL instance
-
-    Returns:
-        bool: True if successful
-    """
     try:
-        if not device.stop():
-            print_func("❌ Failed to stop device server")
+        # Stop the device server
+        result = device.stop_server()
+        if result:
+            print_func("[OK] Device server stopped")
+            return True
+        else:
+            print_func("ERROR stopping device server")
             return False
-        print_func("✅ Device server stopped")
-        return True
     except Exception as e:
-        print_func(f"❌ Error during device server stop: {str(e)}")
+        print_func(f"ERROR stopping device server: {str(e)}")
         traceback.print_exc()
         return False
 
 
 def load_driver_dll(driver_dll_path=None):
-    """Load the driver DLL.
-
-    Args:
-        driver_dll_path: Optional path to the DLL file
-
-    Returns:
-        DriverDLL instance or None if failed
-    """
+    """Load the driver DLL with error handling."""
     if driver_dll_path is None:
-        # Get the default path
-        base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        # Get the path to the DLL
         driver_dll_path = os.path.join(
-            base_dir, "build", "bin", "Debug", "semi_vibe_driver.dll"
+            os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+            "build",
+            "bin",
+            "Debug",
+            "semi_vibe_driver.dll",
         )
 
-    print_func(f"Driver DLL path: {driver_dll_path}")
-
-    # Check if DLL exists
-    if not os.path.exists(driver_dll_path):
-        print_func(f"❌ Driver DLL not found at {driver_dll_path}")
-        return None
-
-    # Load the driver DLL
     try:
+        # Load the driver DLL
         driver = DriverDLL(driver_dll_path)
-        print_func("✅ Driver DLL loaded successfully")
+        driver.set_log_callback(driver_log_callback)
+        print_func("[OK] Driver DLL loaded successfully")
         return driver
     except Exception as e:
-        print_func(f"❌ Failed to load driver DLL: {str(e)}")
+        print_func(f"ERROR loading driver DLL: {str(e)}")
         traceback.print_exc()
         return None
 
 
 def initialize_driver(driver):
-    """Initialize the driver.
+    """Initialize the driver with error handling."""
+    if not driver:
+        print_func("ERROR: Driver DLL not loaded")
+        return False
 
-    Args:
-        driver: DriverDLL instance
-
-    Returns:
-        bool: True if successful
-    """
     try:
-        if not driver.init(driver_log_callback):
-            print_func("❌ Failed to initialize driver")
+        # Initialize the driver
+        result = driver.initialize()
+        if result:
+            print_func("[OK] Driver initialized successfully")
+            return True
+        else:
+            print_func("ERROR initializing driver")
             return False
-        print_func("✅ Driver initialized successfully")
-        return True
     except Exception as e:
-        print_func(f"❌ Error during driver initialization: {str(e)}")
+        print_func(f"ERROR initializing driver: {str(e)}")
         traceback.print_exc()
         return False
 
 
 def connect_driver(driver, host="localhost", port=8989):
-    """Connect the driver to the device.
+    """Connect the driver to the device with error handling."""
+    if not driver:
+        print_func("ERROR: Driver DLL not loaded")
+        return False
 
-    Args:
-        driver: DriverDLL instance
-        host: Hostname or IP address
-        port: Port number
-
-    Returns:
-        bool: True if successful
-    """
     try:
-        if not driver.connect(host, port):
-            print_func(f"❌ Failed to connect to device at {host}:{port}")
+        # Connect the driver to the device
+        result = driver.connect(host, port)
+        if result:
+            print_func("[OK] Connected to device successfully")
+            return True
+        else:
+            print_func("ERROR connecting to device")
             return False
-        print_func("✅ Connected to device successfully")
-        return True
     except Exception as e:
-        print_func(f"❌ Error during driver connection: {str(e)}")
+        print_func(f"ERROR connecting to device: {str(e)}")
         traceback.print_exc()
         return False
 
 
 def disconnect_driver(driver):
-    """Disconnect the driver from the device.
+    """Disconnect the driver from the device with error handling."""
+    if not driver:
+        print_func("ERROR: Driver DLL not loaded")
+        return False
 
-    Args:
-        driver: DriverDLL instance
-
-    Returns:
-        bool: True if successful
-    """
     try:
-        if not driver.disconnect():
-            print_func("❌ Failed to disconnect driver")
+        # Disconnect the driver from the device
+        result = driver.disconnect()
+        if result:
+            print_func("[OK] Driver disconnected")
+            return True
+        else:
+            print_func("ERROR disconnecting driver")
             return False
-        print_func("✅ Driver disconnected")
-        return True
     except Exception as e:
-        print_func(f"❌ Error during driver disconnect: {str(e)}")
+        print_func(f"ERROR disconnecting driver: {str(e)}")
         traceback.print_exc()
         return False
 
@@ -355,9 +333,9 @@ def run_standalone_test(test_func):
 
         # Print result
         if success:
-            print_func("\n✅ Test passed!")
+            print_func("\n[PASSED] Test passed!")
         else:
-            print_func("\n❌ Test failed!")
+            print_func("\n[FAIL] Test failed!")
 
         return 0 if success else 1
     finally:

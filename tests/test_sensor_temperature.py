@@ -22,7 +22,7 @@ def test_temperature_sensor_range(driver, device):
     # Get initial temperature value
     initial_value = driver.get_temperature()
     if initial_value is None:
-        test_utils.print_func("❌ Failed to get initial temperature value")
+        test_utils.print_func("[FAIL] Failed to get initial temperature value")
         return False
 
     test_utils.print_func(f"Initial temperature value: {initial_value}")
@@ -39,7 +39,7 @@ def test_temperature_sensor_range(driver, device):
         # Get current device memory
         device_memory = DeviceMemory()
         if not device.get_memory(device_memory):
-            test_utils.print_func("❌ Failed to get device memory")
+            test_utils.print_func("[FAIL] Failed to get device memory")
             all_passed = False
             failed_values.append(test_value)
             continue
@@ -47,7 +47,7 @@ def test_temperature_sensor_range(driver, device):
         # Update memory
         device_memory.sensor_a_reading = test_value
         if not device.set_memory(device_memory):
-            test_utils.print_func("❌ Failed to set device memory")
+            test_utils.print_func("[FAIL] Failed to set device memory")
             all_passed = False
             failed_values.append(test_value)
             continue
@@ -55,7 +55,7 @@ def test_temperature_sensor_range(driver, device):
         # Verify the value through the driver
         read_value = driver.get_temperature()
         if read_value is None:
-            test_utils.print_func("❌ Failed to get updated temperature value")
+            test_utils.print_func("[FAIL] Failed to get updated temperature value")
             all_passed = False
             failed_values.append(test_value)
             continue
@@ -63,7 +63,7 @@ def test_temperature_sensor_range(driver, device):
         test_utils.print_func(f"Driver reports temperature value: {read_value}")
         if read_value != test_value:
             test_utils.print_func(
-                f"❌ Temperature value mismatch: expected {test_value}, got {read_value}"
+                f"[FAIL] Temperature value mismatch: expected {test_value}, got {read_value}"
             )
             all_passed = False
             failed_values.append(test_value)
@@ -71,7 +71,7 @@ def test_temperature_sensor_range(driver, device):
 
         # Print progress every 25 values
         if test_value % 25 == 0 or test_value == 255:
-            test_utils.print_func(f"✅ Tested temperature values 0-{test_value}")
+            test_utils.print_func(f"[PASSED] Tested temperature values 0-{test_value}")
 
     # Reset temperature to initial value
     test_utils.print_func(f"Resetting temperature to initial value {initial_value}...")
@@ -82,11 +82,11 @@ def test_temperature_sensor_range(driver, device):
 
     if all_passed:
         test_utils.print_func(
-            "✅ Temperature sensor range test passed for all 256 values"
+            "[PASSED] Temperature sensor range test passed for all 256 values"
         )
     else:
         test_utils.print_func(
-            f"❌ Temperature sensor range test failed for values: {failed_values}"
+            f"[FAIL] Temperature sensor range test failed for values: {failed_values}"
         )
 
     return all_passed
@@ -104,7 +104,7 @@ def test_temperature_get_api(driver, device):
     # Get initial temperature value
     initial_value = driver.get_temperature()
     if initial_value is None:
-        test_utils.print_func("❌ Failed to get initial temperature value")
+        test_utils.print_func("[FAIL] Failed to get initial temperature value")
         return False
 
     test_utils.print_func(f"Initial temperature value: {initial_value}")
@@ -116,7 +116,7 @@ def test_temperature_get_api(driver, device):
         # Get current device memory
         device_memory = DeviceMemory()
         if not device.get_memory(device_memory):
-            test_utils.print_func("❌ Failed to get device memory")
+            test_utils.print_func("[FAIL] Failed to get device memory")
             all_passed = False
             failed_values.append(test_value)
             continue
@@ -124,7 +124,7 @@ def test_temperature_get_api(driver, device):
         # Update memory with new temperature value
         device_memory.sensor_a_reading = test_value
         if not device.set_memory(device_memory):
-            test_utils.print_func("❌ Failed to set device memory")
+            test_utils.print_func("[FAIL] Failed to set device memory")
             all_passed = False
             failed_values.append(test_value)
             continue
@@ -132,7 +132,7 @@ def test_temperature_get_api(driver, device):
         # Verify the value using the get_temperature API
         read_value = driver.get_temperature()
         if read_value is None:
-            test_utils.print_func("❌ Failed to read temperature value")
+            test_utils.print_func("[FAIL] Failed to read temperature value")
             all_passed = False
             failed_values.append(test_value)
             continue
@@ -142,13 +142,13 @@ def test_temperature_get_api(driver, device):
         # Check if the read value matches what we set
         if read_value != test_value:
             test_utils.print_func(
-                f"❌ Value mismatch: expected {test_value}, got {read_value}"
+                f"[FAIL] Value mismatch: expected {test_value}, got {read_value}"
             )
             all_passed = False
             failed_values.append(test_value)
             continue
 
-        test_utils.print_func(f"✅ Verified temperature value {test_value}")
+        test_utils.print_func(f"[PASSED] Verified temperature value {test_value}")
 
     # Reset temperature to initial value
     test_utils.print_func(
@@ -162,24 +162,24 @@ def test_temperature_get_api(driver, device):
     # Verify reset value
     final_value = driver.get_temperature()
     if final_value is None:
-        test_utils.print_func("❌ Failed to get final temperature value")
+        test_utils.print_func("[FAIL] Failed to get final temperature value")
         return False
 
     test_utils.print_func(f"Final temperature value after reset: {final_value}")
 
     if final_value != initial_value:
         test_utils.print_func(
-            f"❌ Failed to reset temperature value: expected {initial_value}, got {final_value}"
+            f"[FAIL] Failed to reset temperature value: expected {initial_value}, got {final_value}"
         )
         all_passed = False
 
     if all_passed:
         test_utils.print_func(
-            f"✅ Temperature get API test passed for all {len(test_values)} values"
+            f"[PASSED] Temperature get API test passed for all {len(test_values)} values"
         )
     else:
         test_utils.print_func(
-            f"❌ Temperature get API test failed for values: {failed_values}"
+            f"[FAIL] Temperature get API test failed for values: {failed_values}"
         )
 
     return all_passed
@@ -204,7 +204,7 @@ def run_tests(driver, device):
     test_utils.print_func("\n=== Temperature Sensor Tests Summary ===")
     all_passed = True
     for name, result in results:
-        status = "✅ PASSED" if result else "❌ FAILED"
+        status = "[PASSED] PASSED" if result else "[FAIL] FAILED"
         test_utils.print_func(f"{name}: {status}")
         all_passed = all_passed and result
 
@@ -229,9 +229,9 @@ def main():
 
         # Print result
         if success:
-            test_utils.print_func("\n✅ All tests passed!")
+            test_utils.print_func("\n[PASSED] All tests passed!")
         else:
-            test_utils.print_func("\n❌ Some tests failed!")
+            test_utils.print_func("\n[FAIL] Some tests failed!")
 
         return 0 if success else 1
     finally:

@@ -21,13 +21,15 @@ def get_humidity_value_direct(driver):
     """Get humidity value using direct command interface."""
     response_buffer = ctypes.create_string_buffer(7)
     if not driver.send_command("221000", response_buffer):
-        test_utils.print_func("❌ Failed to send direct command to get humidity value")
+        test_utils.print_func(
+            "[FAIL] Failed to send direct command to get humidity value"
+        )
         return None
 
     # Parse the response (format: 2210XX where XX is the humidity value in hex)
     response = response_buffer.value.decode("utf-8")
     if len(response) != 6 or not response.startswith("2210"):
-        test_utils.print_func(f"❌ Invalid response format: {response}")
+        test_utils.print_func(f"[FAIL] Invalid response format: {response}")
         return None
 
     try:
@@ -35,7 +37,7 @@ def get_humidity_value_direct(driver):
         return humidity_value
     except ValueError:
         test_utils.print_func(
-            f"❌ Failed to parse humidity value from response: {response}"
+            f"[FAIL] Failed to parse humidity value from response: {response}"
         )
         return None
 
@@ -47,7 +49,7 @@ def test_humidity_sensor_direct(driver, device):
     # Get initial humidity value using direct command
     initial_value = get_humidity_value_direct(driver)
     if initial_value is None:
-        test_utils.print_func("❌ Failed to get initial humidity value")
+        test_utils.print_func("[FAIL] Failed to get initial humidity value")
         return False
 
     test_utils.print_func(f"Initial humidity value: {initial_value}")
@@ -64,7 +66,7 @@ def test_humidity_sensor_direct(driver, device):
         # Get current device memory
         device_memory = DeviceMemory()
         if not device.get_memory(device_memory):
-            test_utils.print_func("❌ Failed to get device memory")
+            test_utils.print_func("[FAIL] Failed to get device memory")
             all_passed = False
             failed_values.append(test_value)
             continue
@@ -72,7 +74,7 @@ def test_humidity_sensor_direct(driver, device):
         # Update memory with new humidity value
         device_memory.sensor_b_reading = test_value
         if not device.set_memory(device_memory):
-            test_utils.print_func("❌ Failed to set device memory")
+            test_utils.print_func("[FAIL] Failed to set device memory")
             all_passed = False
             failed_values.append(test_value)
             continue
@@ -83,7 +85,7 @@ def test_humidity_sensor_direct(driver, device):
         # Verify the value using direct command
         read_value = get_humidity_value_direct(driver)
         if read_value is None:
-            test_utils.print_func("❌ Failed to read humidity value")
+            test_utils.print_func("[FAIL] Failed to read humidity value")
             all_passed = False
             failed_values.append(test_value)
             continue
@@ -93,13 +95,13 @@ def test_humidity_sensor_direct(driver, device):
         # Check if the read value matches what we set
         if read_value != test_value:
             test_utils.print_func(
-                f"❌ Value mismatch: expected {test_value}, got {read_value}"
+                f"[FAIL] Value mismatch: expected {test_value}, got {read_value}"
             )
             all_passed = False
             failed_values.append(test_value)
             continue
 
-        test_utils.print_func(f"✅ Verified humidity value {test_value}")
+        test_utils.print_func(f"[PASSED] Verified humidity value {test_value}")
 
     # Reset humidity to initial value
     test_utils.print_func(f"\nResetting humidity to initial value {initial_value}...")
@@ -114,24 +116,24 @@ def test_humidity_sensor_direct(driver, device):
     # Verify reset value
     final_value = get_humidity_value_direct(driver)
     if final_value is None:
-        test_utils.print_func("❌ Failed to get final humidity value")
+        test_utils.print_func("[FAIL] Failed to get final humidity value")
         return False
 
     test_utils.print_func(f"Final humidity value after reset: {final_value}")
 
     if final_value != initial_value:
         test_utils.print_func(
-            f"❌ Failed to reset humidity value: expected {initial_value}, got {final_value}"
+            f"[FAIL] Failed to reset humidity value: expected {initial_value}, got {final_value}"
         )
         all_passed = False
 
     if all_passed:
         test_utils.print_func(
-            f"✅ Humidity sensor test passed for all {len(test_values)} values"
+            f"[PASSED] Humidity sensor test passed for all {len(test_values)} values"
         )
     else:
         test_utils.print_func(
-            f"❌ Humidity sensor test failed for values: {failed_values}"
+            f"[FAIL] Humidity sensor test failed for values: {failed_values}"
         )
 
     return all_passed
@@ -149,7 +151,7 @@ def test_humidity_get_api(driver, device):
     # Get initial humidity value
     initial_value = driver.get_humidity()
     if initial_value is None:
-        test_utils.print_func("❌ Failed to get initial humidity value")
+        test_utils.print_func("[FAIL] Failed to get initial humidity value")
         return False
 
     test_utils.print_func(f"Initial humidity value: {initial_value}")
@@ -161,7 +163,7 @@ def test_humidity_get_api(driver, device):
         # Get current device memory
         device_memory = DeviceMemory()
         if not device.get_memory(device_memory):
-            test_utils.print_func("❌ Failed to get device memory")
+            test_utils.print_func("[FAIL] Failed to get device memory")
             all_passed = False
             failed_values.append(test_value)
             continue
@@ -169,7 +171,7 @@ def test_humidity_get_api(driver, device):
         # Update memory with new humidity value
         device_memory.sensor_b_reading = test_value
         if not device.set_memory(device_memory):
-            test_utils.print_func("❌ Failed to set device memory")
+            test_utils.print_func("[FAIL] Failed to set device memory")
             all_passed = False
             failed_values.append(test_value)
             continue
@@ -180,7 +182,7 @@ def test_humidity_get_api(driver, device):
         # Verify the value using the get_humidity API
         read_value = driver.get_humidity()
         if read_value is None:
-            test_utils.print_func("❌ Failed to read humidity value")
+            test_utils.print_func("[FAIL] Failed to read humidity value")
             all_passed = False
             failed_values.append(test_value)
             continue
@@ -190,13 +192,13 @@ def test_humidity_get_api(driver, device):
         # Check if the read value matches what we set
         if read_value != test_value:
             test_utils.print_func(
-                f"❌ Value mismatch: expected {test_value}, got {read_value}"
+                f"[FAIL] Value mismatch: expected {test_value}, got {read_value}"
             )
             all_passed = False
             failed_values.append(test_value)
             continue
 
-        test_utils.print_func(f"✅ Verified humidity value {test_value}")
+        test_utils.print_func(f"[PASSED] Verified humidity value {test_value}")
 
     # Reset humidity to initial value
     test_utils.print_func(f"\nResetting humidity to initial value {initial_value}...")
@@ -211,24 +213,24 @@ def test_humidity_get_api(driver, device):
     # Verify reset value
     final_value = driver.get_humidity()
     if final_value is None:
-        test_utils.print_func("❌ Failed to get final humidity value")
+        test_utils.print_func("[FAIL] Failed to get final humidity value")
         return False
 
     test_utils.print_func(f"Final humidity value after reset: {final_value}")
 
     if final_value != initial_value:
         test_utils.print_func(
-            f"❌ Failed to reset humidity value: expected {initial_value}, got {final_value}"
+            f"[FAIL] Failed to reset humidity value: expected {initial_value}, got {final_value}"
         )
         all_passed = False
 
     if all_passed:
         test_utils.print_func(
-            f"✅ Humidity get API test passed for all {len(test_values)} values"
+            f"[PASSED] Humidity get API test passed for all {len(test_values)} values"
         )
     else:
         test_utils.print_func(
-            f"❌ Humidity get API test failed for values: {failed_values}"
+            f"[FAIL] Humidity get API test failed for values: {failed_values}"
         )
 
     return all_passed
@@ -253,7 +255,7 @@ def run_tests(driver, device=None):
     test_utils.print_func("\n=== Humidity Sensor Tests Summary ===")
     all_passed = True
     for name, result in results:
-        status = "✅ PASSED" if result else "❌ FAILED"
+        status = "[PASSED] PASSED" if result else "[FAIL] FAILED"
         test_utils.print_func(f"{name}: {status}")
         all_passed = all_passed and result
 
@@ -281,9 +283,9 @@ def main():
 
         # Print overall result
         if success:
-            test_utils.print_func("\n✅ All tests passed!")
+            test_utils.print_func("\n[PASSED] All tests passed!")
         else:
-            test_utils.print_func("\n❌ Some tests failed!")
+            test_utils.print_func("\n[FAIL] Some tests failed!")
 
         return 0 if success else 1
     finally:

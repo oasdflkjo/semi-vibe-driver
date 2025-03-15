@@ -20,20 +20,22 @@ def get_fan_value_direct(driver):
     """Get fan value using direct command interface for cleaner output."""
     response_buffer = ctypes.create_string_buffer(7)
     if not driver.send_command("320000", response_buffer):
-        test_utils.print_func("❌ Failed to send direct command to get fan value")
+        test_utils.print_func("[FAIL] Failed to send direct command to get fan value")
         return None
 
     # Parse the response (format: 3200XX where XX is the fan value in hex)
     response = response_buffer.value.decode("utf-8")
     if len(response) != 6 or not response.startswith("3200"):
-        test_utils.print_func(f"❌ Invalid response format: {response}")
+        test_utils.print_func(f"[FAIL] Invalid response format: {response}")
         return None
 
     try:
         fan_value = int(response[4:], 16)
         return fan_value
     except ValueError:
-        test_utils.print_func(f"❌ Failed to parse fan value from response: {response}")
+        test_utils.print_func(
+            f"[FAIL] Failed to parse fan value from response: {response}"
+        )
         return None
 
 
@@ -43,14 +45,16 @@ def set_fan_value_direct(driver, value):
     response_buffer = ctypes.create_string_buffer(7)
     if not driver.send_command(command, response_buffer):
         test_utils.print_func(
-            f"❌ Failed to send direct command to set fan value to {value}"
+            f"[FAIL] Failed to send direct command to set fan value to {value}"
         )
         return False
 
     # Verify the response matches the command
     response = response_buffer.value.decode("utf-8")
     if response != command:
-        test_utils.print_func(f"❌ Response mismatch: sent {command}, got {response}")
+        test_utils.print_func(
+            f"[FAIL] Response mismatch: sent {command}, got {response}"
+        )
         return False
 
     return True
@@ -63,7 +67,7 @@ def test_fan_range_direct(driver):
     # Get initial fan value
     initial_value = get_fan_value_direct(driver)
     if initial_value is None:
-        test_utils.print_func("❌ Failed to get initial fan value")
+        test_utils.print_func("[FAIL] Failed to get initial fan value")
         return False
 
     test_utils.print_func(f"Initial fan value: {initial_value}")
@@ -88,7 +92,7 @@ def test_fan_range_direct(driver):
         # Read back the value using direct command
         read_value = get_fan_value_direct(driver)
         if read_value is None:
-            test_utils.print_func("❌ Failed to read back fan value")
+            test_utils.print_func("[FAIL] Failed to read back fan value")
             all_passed = False
             failed_values.append(test_value)
             continue
@@ -98,7 +102,7 @@ def test_fan_range_direct(driver):
 
         if read_value != test_value:
             test_utils.print_func(
-                f"❌ Fan value mismatch: expected {test_value}, got {read_value}"
+                f"[FAIL] Fan value mismatch: expected {test_value}, got {read_value}"
             )
             all_passed = False
             failed_values.append(test_value)
@@ -106,26 +110,28 @@ def test_fan_range_direct(driver):
 
         # Print progress every 25 values
         if test_value % 25 == 0 or test_value == 255:
-            test_utils.print_func(f"✅ Tested fan values 0-{test_value}")
+            test_utils.print_func(f"[PASSED] Tested fan values 0-{test_value}")
 
     # Reset fan to initial value
     test_utils.print_func(f"Resetting fan to initial value {initial_value}...")
     if not set_fan_value_direct(driver, initial_value):
-        test_utils.print_func("❌ Failed to reset fan value")
+        test_utils.print_func("[FAIL] Failed to reset fan value")
         return False
 
     # Verify the reset value
     final_value = get_fan_value_direct(driver)
     if final_value is None:
-        test_utils.print_func("❌ Failed to get final fan value")
+        test_utils.print_func("[FAIL] Failed to get final fan value")
         return False
 
     test_utils.print_func(f"Final fan value after reset: {final_value}")
 
     if all_passed:
-        test_utils.print_func("✅ Fan range test passed for all 256 values")
+        test_utils.print_func("[PASSED] Fan range test passed for all 256 values")
     else:
-        test_utils.print_func(f"❌ Fan range test failed for values: {failed_values}")
+        test_utils.print_func(
+            f"[FAIL] Fan range test failed for values: {failed_values}"
+        )
 
     return all_passed
 
@@ -137,7 +143,7 @@ def test_fan_range(driver):
     # Get initial fan value
     actuator_data = ActuatorData()
     if not driver.get_actuators(actuator_data):
-        test_utils.print_func("❌ Failed to get actuator data")
+        test_utils.print_func("[FAIL] Failed to get actuator data")
         return False
 
     initial_value = actuator_data.fan_value
@@ -156,7 +162,7 @@ def test_fan_range(driver):
 
         # Set fan to test value
         if not driver.set_fan(test_value):
-            test_utils.print_func(f"❌ Failed to set fan value to {test_value}")
+            test_utils.print_func(f"[FAIL] Failed to set fan value to {test_value}")
             all_passed = False
             failed_values.append(test_value)
             continue
@@ -164,7 +170,7 @@ def test_fan_range(driver):
         # Verify the value
         actuator_data = ActuatorData()
         if not driver.get_actuators(actuator_data):
-            test_utils.print_func("❌ Failed to get updated actuator data")
+            test_utils.print_func("[FAIL] Failed to get updated actuator data")
             all_passed = False
             failed_values.append(test_value)
             continue
@@ -174,7 +180,7 @@ def test_fan_range(driver):
 
         if actuator_data.fan_value != test_value:
             test_utils.print_func(
-                f"❌ Fan value mismatch: expected {test_value}, got {actuator_data.fan_value}"
+                f"[FAIL] Fan value mismatch: expected {test_value}, got {actuator_data.fan_value}"
             )
             all_passed = False
             failed_values.append(test_value)
@@ -182,26 +188,28 @@ def test_fan_range(driver):
 
         # Print progress every 25 values
         if test_value % 25 == 0 or test_value == 255:
-            test_utils.print_func(f"✅ Tested fan values 0-{test_value}")
+            test_utils.print_func(f"[PASSED] Tested fan values 0-{test_value}")
 
     # Reset fan to initial value
     test_utils.print_func(f"Resetting fan to initial value {initial_value}...")
     if not driver.set_fan(initial_value):
-        test_utils.print_func("❌ Failed to reset fan value")
+        test_utils.print_func("[FAIL] Failed to reset fan value")
         return False
 
     # Verify the reset value
     actuator_data = ActuatorData()
     if not driver.get_actuators(actuator_data):
-        test_utils.print_func("❌ Failed to get actuator data after reset")
+        test_utils.print_func("[FAIL] Failed to get actuator data after reset")
         return False
 
     test_utils.print_func(f"Final fan value after reset: {actuator_data.fan_value}")
 
     if all_passed:
-        test_utils.print_func("✅ Fan range test passed for all 256 values")
+        test_utils.print_func("[PASSED] Fan range test passed for all 256 values")
     else:
-        test_utils.print_func(f"❌ Fan range test failed for values: {failed_values}")
+        test_utils.print_func(
+            f"[FAIL] Fan range test failed for values: {failed_values}"
+        )
 
     return all_passed
 
@@ -217,31 +225,31 @@ def test_fan_get_set(driver):
     for value in test_values:
         # Set fan value
         if not driver.set_fan(value):
-            test_utils.print_func(f"❌ Failed to set fan to {value}")
+            test_utils.print_func(f"[FAIL] Failed to set fan to {value}")
             all_passed = False
             continue
 
         # Get fan value
         actual_value = driver.get_fan()
         if actual_value is None:
-            test_utils.print_func(f"❌ Failed to get fan value")
+            test_utils.print_func(f"[FAIL] Failed to get fan value")
             all_passed = False
             continue
 
         # Verify value
         if actual_value != value:
             test_utils.print_func(
-                f"❌ Fan value mismatch: expected {value}, got {actual_value}"
+                f"[FAIL] Fan value mismatch: expected {value}, got {actual_value}"
             )
             all_passed = False
             continue
 
-        test_utils.print_func(f"✅ Verified fan value {value}")
+        test_utils.print_func(f"[PASSED] Verified fan value {value}")
 
     if all_passed:
-        test_utils.print_func("✅ Fan get/set test passed")
+        test_utils.print_func("[PASSED] Fan get/set test passed")
     else:
-        test_utils.print_func("❌ Fan get/set test failed")
+        test_utils.print_func("[FAIL] Fan get/set test failed")
 
     return all_passed
 
@@ -263,7 +271,7 @@ def run_tests(driver, device=None):
     test_utils.print_func("\n=== Fan Tests Summary ===")
     all_passed = True
     for name, result in results:
-        status = "✅ PASSED" if result else "❌ FAILED"
+        status = "[PASSED] PASSED" if result else "[FAIL] FAILED"
         test_utils.print_func(f"{name}: {status}")
         all_passed = all_passed and result
 
@@ -287,9 +295,9 @@ def main():
 
         # Print overall result
         if success:
-            test_utils.print_func("\n✅ Test passed!")
+            test_utils.print_func("\n[PASSED] Test passed!")
         else:
-            test_utils.print_func("\n❌ Test failed!")
+            test_utils.print_func("\n[FAIL] Test failed!")
 
         return 0 if success else 1
     finally:

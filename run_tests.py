@@ -218,41 +218,41 @@ def run_tests():
     # Load the device DLL
     device = load_device_dll(device_dll_path)
     if not device:
-        print("❌ Failed to load device DLL")
+        print("[FAIL] Failed to load device DLL")
         return 1
 
     # Initialize the device
     if not initialize_device(device):
-        print("❌ Failed to initialize device")
+        print("[FAIL] Failed to initialize device")
         return 1
 
     # Start the device server
     if not start_device(device):
-        print("❌ Failed to start device server")
+        print("[FAIL] Failed to start device server")
         return 1
 
-    # Wait for server to start
+    # Wait for the server to be ready
     if not is_server_ready():
-        print("Server failed to start properly.")
+        print("[FAIL] Server did not become ready")
         stop_device(device)
         return 1
 
     # Load the driver DLL
     driver = load_driver_dll(driver_dll_path)
     if not driver:
-        print("❌ Failed to load driver DLL")
+        print("[FAIL] Failed to load driver DLL")
         stop_device(device)
         return 1
 
     # Initialize the driver
     if not initialize_driver(driver):
-        print("❌ Failed to initialize driver")
+        print("[FAIL] Failed to initialize driver")
         stop_device(device)
         return 1
 
-    # Connect to the device
+    # Connect the driver to the device
     if not connect_driver(driver, "localhost", 8989):
-        print("❌ Failed to connect to device")
+        print("[FAIL] Failed to connect to device")
         stop_device(device)
         return 1
 
@@ -264,12 +264,12 @@ def run_tests():
         print("Verifying connection...")
         status = get_driver_status(driver)
         if not status or not status["connected"]:
-            print("❌ Connection verification failed")
+            print("[FAIL] Connection verification failed")
             disconnect_driver(driver)
             stop_device(device)
             return 1
 
-        print("✅ Connected to device")
+        print("[OK] Connected to device")
     except Exception as e:
         print(f"ERROR during connection verification: {str(e)}")
         traceback.print_exc()

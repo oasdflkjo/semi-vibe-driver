@@ -28,7 +28,7 @@ def test_doors_api(driver):
     for door_id, door_name in zip(doors, door_names):
         state = driver.get_door_state(door_id)
         if state is None:
-            test_utils.print_func(f"❌ Failed to get initial state of {door_name}")
+            test_utils.print_func(f"[FAIL] Failed to get initial state of {door_name}")
             return False
         initial_states[door_id] = state
         state_name = "OPEN" if state == DOOR_OPEN else "CLOSED"
@@ -62,7 +62,7 @@ def test_doors_api(driver):
             state = door_states[door_id]
             if not driver.set_door(door_id, state):
                 test_utils.print_func(
-                    f"❌ Failed to set Door {door_id} to {'OPEN' if state == DOOR_OPEN else 'CLOSED'}"
+                    f"[FAIL] Failed to set Door {door_id} to {'OPEN' if state == DOOR_OPEN else 'CLOSED'}"
                 )
                 all_passed = False
                 continue
@@ -73,7 +73,7 @@ def test_doors_api(driver):
             actual_state = driver.get_door_state(door_id)
 
             if actual_state is None:
-                test_utils.print_func(f"❌ Failed to get state of {door_name}")
+                test_utils.print_func(f"[FAIL] Failed to get state of {door_name}")
                 all_passed = False
                 continue
 
@@ -81,25 +81,29 @@ def test_doors_api(driver):
                 expected_name = "OPEN" if expected_state == DOOR_OPEN else "CLOSED"
                 actual_name = "OPEN" if actual_state == DOOR_OPEN else "CLOSED"
                 test_utils.print_func(
-                    f"❌ {door_name} state mismatch: expected {expected_name}, got {actual_name}"
+                    f"[FAIL] {door_name} state mismatch: expected {expected_name}, got {actual_name}"
                 )
                 all_passed = False
                 continue
 
-        test_utils.print_func(f"✅ Verified configuration {config_num}")
+        test_utils.print_func(f"[PASSED] Verified configuration {config_num}")
 
     # Reset doors to initial states
     test_utils.print_func(f"\nResetting doors to initial states...")
     for door_id, door_name in zip(doors, door_names):
         if not driver.set_door(door_id, initial_states[door_id]):
-            test_utils.print_func(f"❌ Failed to reset {door_name} to initial state")
+            test_utils.print_func(
+                f"[FAIL] Failed to reset {door_name} to initial state"
+            )
             all_passed = False
             continue
 
         # Verify reset
         state = driver.get_door_state(door_id)
         if state is None:
-            test_utils.print_func(f"❌ Failed to get state of {door_name} after reset")
+            test_utils.print_func(
+                f"[FAIL] Failed to get state of {door_name} after reset"
+            )
             all_passed = False
             continue
 
@@ -107,18 +111,18 @@ def test_doors_api(driver):
             expected_name = "OPEN" if initial_states[door_id] == DOOR_OPEN else "CLOSED"
             actual_name = "OPEN" if state == DOOR_OPEN else "CLOSED"
             test_utils.print_func(
-                f"❌ {door_name} state mismatch after reset: expected {expected_name}, got {actual_name}"
+                f"[FAIL] {door_name} state mismatch after reset: expected {expected_name}, got {actual_name}"
             )
             all_passed = False
             continue
 
         state_name = "OPEN" if state == DOOR_OPEN else "CLOSED"
-        test_utils.print_func(f"✅ Reset {door_name} to {state_name}")
+        test_utils.print_func(f"[PASSED] Reset {door_name} to {state_name}")
 
     if all_passed:
-        test_utils.print_func(f"✅ Doors test passed for all 16 configurations")
+        test_utils.print_func(f"[PASSED] Doors test passed for all 16 configurations")
     else:
-        test_utils.print_func(f"❌ Doors test failed")
+        test_utils.print_func(f"[FAIL] Doors test failed")
 
     return all_passed
 
@@ -137,7 +141,7 @@ def run_tests(driver):
     test_utils.print_func("\n=== Doors Tests Summary ===")
     all_passed = True
     for name, result in results:
-        status = "✅ PASSED" if result else "❌ FAILED"
+        status = "[PASSED] PASSED" if result else "[FAIL] FAILED"
         test_utils.print_func(f"{name}: {status}")
         all_passed = all_passed and result
 

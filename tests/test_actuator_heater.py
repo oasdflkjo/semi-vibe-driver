@@ -21,7 +21,7 @@ def test_heater_range(driver):
     # Get initial heater value
     initial_value = driver.get_heater()
     if initial_value is None:
-        test_utils.print_func("❌ Failed to get initial heater value")
+        test_utils.print_func("[FAIL] Failed to get initial heater value")
         return False
 
     test_utils.print_func(f"Initial heater value: {initial_value}")
@@ -35,7 +35,7 @@ def test_heater_range(driver):
         # Set heater to test value
         test_utils.print_func(f"Setting heater value to {test_value}...")
         if not driver.set_heater(test_value):
-            test_utils.print_func(f"❌ Failed to set heater value to {test_value}")
+            test_utils.print_func(f"[FAIL] Failed to set heater value to {test_value}")
             all_passed = False
             failed_values.append(test_value)
             continue
@@ -43,7 +43,7 @@ def test_heater_range(driver):
         # Verify the value
         read_value = driver.get_heater()
         if read_value is None:
-            test_utils.print_func("❌ Failed to get updated heater value")
+            test_utils.print_func("[FAIL] Failed to get updated heater value")
             all_passed = False
             failed_values.append(test_value)
             continue
@@ -51,7 +51,7 @@ def test_heater_range(driver):
         test_utils.print_func(f"Read back heater value: {read_value}")
         if read_value != test_value:
             test_utils.print_func(
-                f"❌ Heater value mismatch: expected {test_value}, got {read_value}"
+                f"[FAIL] Heater value mismatch: expected {test_value}, got {read_value}"
             )
             all_passed = False
             failed_values.append(test_value)
@@ -59,27 +59,27 @@ def test_heater_range(driver):
 
         # Print progress every 5 values
         if test_value % 5 == 0 or test_value == 15:
-            test_utils.print_func(f"✅ Tested heater values 0-{test_value}")
+            test_utils.print_func(f"[PASSED] Tested heater values 0-{test_value}")
 
     # Reset heater to initial value
     test_utils.print_func(f"Resetting heater to initial value {initial_value}...")
     if not driver.set_heater(initial_value):
-        test_utils.print_func("❌ Failed to reset heater value")
+        test_utils.print_func("[FAIL] Failed to reset heater value")
         return False
 
     # Verify the reset value
     final_value = driver.get_heater()
     if final_value is None:
-        test_utils.print_func("❌ Failed to get heater value after reset")
+        test_utils.print_func("[FAIL] Failed to get heater value after reset")
         return False
 
     test_utils.print_func(f"Final heater value after reset: {final_value}")
 
     if all_passed:
-        test_utils.print_func("✅ Heater range test passed for all 16 values")
+        test_utils.print_func("[PASSED] Heater range test passed for all 16 values")
     else:
         test_utils.print_func(
-            f"❌ Heater range test failed for values: {failed_values}"
+            f"[FAIL] Heater range test failed for values: {failed_values}"
         )
 
     return all_passed
@@ -97,7 +97,7 @@ def test_heater_get_api(driver):
     # Get initial heater value
     initial_value = driver.get_heater()
     if initial_value is None:
-        test_utils.print_func("❌ Failed to get initial heater value")
+        test_utils.print_func("[FAIL] Failed to get initial heater value")
         return False
 
     test_utils.print_func(f"Initial heater value: {initial_value}")
@@ -108,7 +108,7 @@ def test_heater_get_api(driver):
 
         # Set heater to test value
         if not driver.set_heater(test_value):
-            test_utils.print_func(f"❌ Failed to set heater value to {test_value}")
+            test_utils.print_func(f"[FAIL] Failed to set heater value to {test_value}")
             all_passed = False
             failed_values.append(test_value)
             continue
@@ -116,7 +116,7 @@ def test_heater_get_api(driver):
         # Verify the value using the get_heater API
         read_value = driver.get_heater()
         if read_value is None:
-            test_utils.print_func("❌ Failed to read heater value")
+            test_utils.print_func("[FAIL] Failed to read heater value")
             all_passed = False
             failed_values.append(test_value)
             continue
@@ -126,41 +126,41 @@ def test_heater_get_api(driver):
         # Check if the read value matches what we set
         if read_value != test_value:
             test_utils.print_func(
-                f"❌ Value mismatch: expected {test_value}, got {read_value}"
+                f"[FAIL] Value mismatch: expected {test_value}, got {read_value}"
             )
             all_passed = False
             failed_values.append(test_value)
             continue
 
-        test_utils.print_func(f"✅ Verified heater value {test_value}")
+        test_utils.print_func(f"[PASSED] Verified heater value {test_value}")
 
     # Reset heater to initial value
     test_utils.print_func(f"\nResetting heater to initial value {initial_value}...")
     if not driver.set_heater(initial_value):
-        test_utils.print_func("❌ Failed to reset heater value")
+        test_utils.print_func("[FAIL] Failed to reset heater value")
         return False
 
     # Verify reset value
     final_value = driver.get_heater()
     if final_value is None:
-        test_utils.print_func("❌ Failed to get final heater value")
+        test_utils.print_func("[FAIL] Failed to get final heater value")
         return False
 
     test_utils.print_func(f"Final heater value after reset: {final_value}")
 
     if final_value != initial_value:
         test_utils.print_func(
-            f"❌ Failed to reset heater value: expected {initial_value}, got {final_value}"
+            f"[FAIL] Failed to reset heater value: expected {initial_value}, got {final_value}"
         )
         all_passed = False
 
     if all_passed:
         test_utils.print_func(
-            f"✅ Heater get API test passed for all {len(test_values)} values"
+            f"[PASSED] Heater get API test passed for all {len(test_values)} values"
         )
     else:
         test_utils.print_func(
-            f"❌ Heater get API test failed for values: {failed_values}"
+            f"[FAIL] Heater get API test failed for values: {failed_values}"
         )
 
     return all_passed
@@ -183,7 +183,7 @@ def run_tests(driver, device=None):
     test_utils.print_func("\n=== Heater Tests Summary ===")
     all_passed = True
     for name, result in results:
-        status = "✅ PASSED" if result else "❌ FAILED"
+        status = "[PASSED] PASSED" if result else "[FAIL] FAILED"
         test_utils.print_func(f"{name}: {status}")
         all_passed = all_passed and result
 
@@ -211,9 +211,9 @@ def main():
 
         # Print overall result
         if success:
-            test_utils.print_func("\n✅ All tests passed!")
+            test_utils.print_func("\n[PASSED] All tests passed!")
         else:
-            test_utils.print_func("\n❌ Some tests failed!")
+            test_utils.print_func("\n[FAIL] Some tests failed!")
 
         return 0 if success else 1
     finally:

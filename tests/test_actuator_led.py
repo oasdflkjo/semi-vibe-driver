@@ -21,7 +21,7 @@ def test_led_range(driver):
     # Get initial LED value
     initial_value = driver.get_led()
     if initial_value is None:
-        test_utils.print_func("❌ Failed to get initial LED value")
+        test_utils.print_func("[FAIL] Failed to get initial LED value")
         return False
 
     test_utils.print_func(f"Initial LED value: {initial_value}")
@@ -35,7 +35,7 @@ def test_led_range(driver):
         # Set LED to test value
         test_utils.print_func(f"Setting LED value to {test_value}...")
         if not driver.set_led(test_value):
-            test_utils.print_func(f"❌ Failed to set LED value to {test_value}")
+            test_utils.print_func(f"[FAIL] Failed to set LED value to {test_value}")
             all_passed = False
             failed_values.append(test_value)
             continue
@@ -43,7 +43,7 @@ def test_led_range(driver):
         # Verify the value
         read_value = driver.get_led()
         if read_value is None:
-            test_utils.print_func("❌ Failed to get updated LED value")
+            test_utils.print_func("[FAIL] Failed to get updated LED value")
             all_passed = False
             failed_values.append(test_value)
             continue
@@ -51,7 +51,7 @@ def test_led_range(driver):
         test_utils.print_func(f"Read back LED value: {read_value}")
         if read_value != test_value:
             test_utils.print_func(
-                f"❌ LED value mismatch: expected {test_value}, got {read_value}"
+                f"[FAIL] LED value mismatch: expected {test_value}, got {read_value}"
             )
             all_passed = False
             failed_values.append(test_value)
@@ -59,26 +59,28 @@ def test_led_range(driver):
 
         # Print progress every 25 values
         if test_value % 25 == 0 or test_value == 255:
-            test_utils.print_func(f"✅ Tested LED values 0-{test_value}")
+            test_utils.print_func(f"[PASSED] Tested LED values 0-{test_value}")
 
     # Reset LED to initial value
     test_utils.print_func(f"Resetting LED to initial value {initial_value}...")
     if not driver.set_led(initial_value):
-        test_utils.print_func("❌ Failed to reset LED value")
+        test_utils.print_func("[FAIL] Failed to reset LED value")
         return False
 
     # Verify the reset value
     final_value = driver.get_led()
     if final_value is None:
-        test_utils.print_func("❌ Failed to get LED value after reset")
+        test_utils.print_func("[FAIL] Failed to get LED value after reset")
         return False
 
     test_utils.print_func(f"Final LED value after reset: {final_value}")
 
     if all_passed:
-        test_utils.print_func("✅ LED range test passed for all 256 values")
+        test_utils.print_func("[PASSED] LED range test passed for all 256 values")
     else:
-        test_utils.print_func(f"❌ LED range test failed for values: {failed_values}")
+        test_utils.print_func(
+            f"[FAIL] LED range test failed for values: {failed_values}"
+        )
 
     return all_passed
 
@@ -95,7 +97,7 @@ def test_led_get_api(driver):
     # Get initial LED value
     initial_value = driver.get_led()
     if initial_value is None:
-        test_utils.print_func("❌ Failed to get initial LED value")
+        test_utils.print_func("[FAIL] Failed to get initial LED value")
         return False
 
     test_utils.print_func(f"Initial LED value: {initial_value}")
@@ -106,7 +108,7 @@ def test_led_get_api(driver):
 
         # Set LED to test value
         if not driver.set_led(test_value):
-            test_utils.print_func(f"❌ Failed to set LED value to {test_value}")
+            test_utils.print_func(f"[FAIL] Failed to set LED value to {test_value}")
             all_passed = False
             failed_values.append(test_value)
             continue
@@ -114,7 +116,7 @@ def test_led_get_api(driver):
         # Verify the value using the get_led API
         read_value = driver.get_led()
         if read_value is None:
-            test_utils.print_func("❌ Failed to read LED value")
+            test_utils.print_func("[FAIL] Failed to read LED value")
             all_passed = False
             failed_values.append(test_value)
             continue
@@ -124,40 +126,42 @@ def test_led_get_api(driver):
         # Check if the read value matches what we set
         if read_value != test_value:
             test_utils.print_func(
-                f"❌ Value mismatch: expected {test_value}, got {read_value}"
+                f"[FAIL] Value mismatch: expected {test_value}, got {read_value}"
             )
             all_passed = False
             failed_values.append(test_value)
             continue
 
-        test_utils.print_func(f"✅ Verified LED value {test_value}")
+        test_utils.print_func(f"[PASSED] Verified LED value {test_value}")
 
     # Reset LED to initial value
     test_utils.print_func(f"\nResetting LED to initial value {initial_value}...")
     if not driver.set_led(initial_value):
-        test_utils.print_func("❌ Failed to reset LED value")
+        test_utils.print_func("[FAIL] Failed to reset LED value")
         return False
 
     # Verify reset value
     final_value = driver.get_led()
     if final_value is None:
-        test_utils.print_func("❌ Failed to get final LED value")
+        test_utils.print_func("[FAIL] Failed to get final LED value")
         return False
 
     test_utils.print_func(f"Final LED value after reset: {final_value}")
 
     if final_value != initial_value:
         test_utils.print_func(
-            f"❌ Failed to reset LED value: expected {initial_value}, got {final_value}"
+            f"[FAIL] Failed to reset LED value: expected {initial_value}, got {final_value}"
         )
         all_passed = False
 
     if all_passed:
         test_utils.print_func(
-            f"✅ LED get API test passed for all {len(test_values)} values"
+            f"[PASSED] LED get API test passed for all {len(test_values)} values"
         )
     else:
-        test_utils.print_func(f"❌ LED get API test failed for values: {failed_values}")
+        test_utils.print_func(
+            f"[FAIL] LED get API test failed for values: {failed_values}"
+        )
 
     return all_passed
 
@@ -179,7 +183,7 @@ def run_tests(driver, device=None):
     test_utils.print_func("\n=== LED Tests Summary ===")
     all_passed = True
     for name, result in results:
-        status = "✅ PASSED" if result else "❌ FAILED"
+        status = "[PASSED] PASSED" if result else "[FAIL] FAILED"
         test_utils.print_func(f"{name}: {status}")
         all_passed = all_passed and result
 
@@ -207,9 +211,9 @@ def main():
 
         # Print overall result
         if success:
-            test_utils.print_func("\n✅ All tests passed!")
+            test_utils.print_func("\n[PASSED] All tests passed!")
         else:
-            test_utils.print_func("\n❌ Some tests failed!")
+            test_utils.print_func("\n[FAIL] Some tests failed!")
 
         return 0 if success else 1
     finally:

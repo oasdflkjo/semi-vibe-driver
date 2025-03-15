@@ -29,7 +29,7 @@ def test_power_state(driver, device):
     # Get current device memory to check initial state
     device_memory = DeviceMemory()
     if not device.get_memory(device_memory):
-        test_utils.print_func("❌ Failed to get device memory")
+        test_utils.print_func("[FAIL] Failed to get device memory")
         return False
 
     # Test all components
@@ -48,7 +48,7 @@ def test_power_state(driver, device):
     for name, component_type in components:
         power_state = driver.get_power_state(component_type)
         if power_state is None:
-            test_utils.print_func(f"❌ Failed to get power state for {name}")
+            test_utils.print_func(f"[FAIL] Failed to get power state for {name}")
             all_passed = False
             continue
 
@@ -62,14 +62,16 @@ def test_power_state(driver, device):
         # Get initial state
         initial_state = driver.get_power_state(component_type)
         if initial_state is None:
-            test_utils.print_func(f"❌ Failed to get initial power state for {name}")
+            test_utils.print_func(
+                f"[FAIL] Failed to get initial power state for {name}"
+            )
             all_passed = False
             continue
 
         # Turn off
         test_utils.print_func(f"Turning {name} OFF...")
         if not driver.set_power_state(component_type, False):
-            test_utils.print_func(f"❌ Failed to turn {name} OFF")
+            test_utils.print_func(f"[FAIL] Failed to turn {name} OFF")
             all_passed = False
             continue
 
@@ -77,22 +79,22 @@ def test_power_state(driver, device):
         power_state = driver.get_power_state(component_type)
         if power_state is None:
             test_utils.print_func(
-                f"❌ Failed to get power state for {name} after turning OFF"
+                f"[FAIL] Failed to get power state for {name} after turning OFF"
             )
             all_passed = False
             continue
 
         if power_state:
-            test_utils.print_func(f"❌ {name} is still ON after turning OFF")
+            test_utils.print_func(f"[FAIL] {name} is still ON after turning OFF")
             all_passed = False
             continue
 
-        test_utils.print_func(f"✅ {name} is now OFF")
+        test_utils.print_func(f"[PASSED] {name} is now OFF")
 
         # Turn on
         test_utils.print_func(f"Turning {name} ON...")
         if not driver.set_power_state(component_type, True):
-            test_utils.print_func(f"❌ Failed to turn {name} ON")
+            test_utils.print_func(f"[FAIL] Failed to turn {name} ON")
             all_passed = False
             continue
 
@@ -100,17 +102,17 @@ def test_power_state(driver, device):
         power_state = driver.get_power_state(component_type)
         if power_state is None:
             test_utils.print_func(
-                f"❌ Failed to get power state for {name} after turning ON"
+                f"[FAIL] Failed to get power state for {name} after turning ON"
             )
             all_passed = False
             continue
 
         if not power_state:
-            test_utils.print_func(f"❌ {name} is still OFF after turning ON")
+            test_utils.print_func(f"[FAIL] {name} is still OFF after turning ON")
             all_passed = False
             continue
 
-        test_utils.print_func(f"✅ {name} is now ON")
+        test_utils.print_func(f"[PASSED] {name} is now ON")
 
         # Restore initial state
         if initial_state != power_state:
@@ -118,7 +120,9 @@ def test_power_state(driver, device):
                 f"Restoring {name} to initial state ({initial_state})..."
             )
             if not driver.set_power_state(component_type, initial_state):
-                test_utils.print_func(f"❌ Failed to restore {name} to initial state")
+                test_utils.print_func(
+                    f"[FAIL] Failed to restore {name} to initial state"
+                )
                 all_passed = False
                 continue
 
@@ -130,7 +134,7 @@ def test_power_state(driver, device):
         driver.set_power_state(COMPONENT_TEMPERATURE, False)
         and driver.set_power_state(COMPONENT_HUMIDITY, False)
     ):
-        test_utils.print_func("❌ Failed to power off sensors")
+        test_utils.print_func("[FAIL] Failed to power off sensors")
         all_passed = False
     else:
         # Verify power state
@@ -139,21 +143,23 @@ def test_power_state(driver, device):
 
         if temp_power is None or humid_power is None:
             test_utils.print_func(
-                "❌ Failed to get sensor power states after power off"
+                "[FAIL] Failed to get sensor power states after power off"
             )
             all_passed = False
         elif temp_power or humid_power:
-            test_utils.print_func("❌ Sensors still powered after power off command")
+            test_utils.print_func(
+                "[FAIL] Sensors still powered after power off command"
+            )
             all_passed = False
         else:
-            test_utils.print_func("✅ Sensors powered off successfully")
+            test_utils.print_func("[PASSED] Sensors powered off successfully")
 
     # Power on sensors
     if not (
         driver.set_power_state(COMPONENT_TEMPERATURE, True)
         and driver.set_power_state(COMPONENT_HUMIDITY, True)
     ):
-        test_utils.print_func("❌ Failed to power on sensors")
+        test_utils.print_func("[FAIL] Failed to power on sensors")
         all_passed = False
     else:
         # Verify power state
@@ -161,13 +167,15 @@ def test_power_state(driver, device):
         humid_power = driver.get_power_state(COMPONENT_HUMIDITY)
 
         if temp_power is None or humid_power is None:
-            test_utils.print_func("❌ Failed to get sensor power states after power on")
+            test_utils.print_func(
+                "[FAIL] Failed to get sensor power states after power on"
+            )
             all_passed = False
         elif not temp_power or not humid_power:
-            test_utils.print_func("❌ Sensors not powered after power on command")
+            test_utils.print_func("[FAIL] Sensors not powered after power on command")
             all_passed = False
         else:
-            test_utils.print_func("✅ Sensors powered on successfully")
+            test_utils.print_func("[PASSED] Sensors powered on successfully")
 
     # Test power on/off for actuators
     test_utils.print_func("\nTesting power on/off for actuators...")
@@ -179,7 +187,7 @@ def test_power_state(driver, device):
         and driver.set_power_state(COMPONENT_HEATER, False)
         and driver.set_power_state(COMPONENT_DOORS, False)
     ):
-        test_utils.print_func("❌ Failed to power off actuators")
+        test_utils.print_func("[FAIL] Failed to power off actuators")
         all_passed = False
     else:
         # Verify power state
@@ -195,14 +203,16 @@ def test_power_state(driver, device):
             or doors_power is None
         ):
             test_utils.print_func(
-                "❌ Failed to get actuator power states after power off"
+                "[FAIL] Failed to get actuator power states after power off"
             )
             all_passed = False
         elif led_power or fan_power or heater_power or doors_power:
-            test_utils.print_func("❌ Actuators still powered after power off command")
+            test_utils.print_func(
+                "[FAIL] Actuators still powered after power off command"
+            )
             all_passed = False
         else:
-            test_utils.print_func("✅ Actuators powered off successfully")
+            test_utils.print_func("[PASSED] Actuators powered off successfully")
 
     # Power on actuators
     if not (
@@ -211,7 +221,7 @@ def test_power_state(driver, device):
         and driver.set_power_state(COMPONENT_HEATER, True)
         and driver.set_power_state(COMPONENT_DOORS, True)
     ):
-        test_utils.print_func("❌ Failed to power on actuators")
+        test_utils.print_func("[FAIL] Failed to power on actuators")
         all_passed = False
     else:
         # Verify power state
@@ -227,19 +237,19 @@ def test_power_state(driver, device):
             or doors_power is None
         ):
             test_utils.print_func(
-                "❌ Failed to get actuator power states after power on"
+                "[FAIL] Failed to get actuator power states after power on"
             )
             all_passed = False
         elif not led_power or not fan_power or not heater_power or not doors_power:
-            test_utils.print_func("❌ Actuators not powered after power on command")
+            test_utils.print_func("[FAIL] Actuators not powered after power on command")
             all_passed = False
         else:
-            test_utils.print_func("✅ Actuators powered on successfully")
+            test_utils.print_func("[PASSED] Actuators powered on successfully")
 
     if all_passed:
-        test_utils.print_func("✅ Power state test passed")
+        test_utils.print_func("[PASSED] Power state test passed")
     else:
-        test_utils.print_func("❌ Power state test failed")
+        test_utils.print_func("[FAIL] Power state test failed")
 
     return all_passed
 
@@ -251,7 +261,7 @@ def test_error_state(driver, device):
     # Get current device memory to check initial state
     device_memory = DeviceMemory()
     if not device.get_memory(device_memory):
-        test_utils.print_func("❌ Failed to get device memory")
+        test_utils.print_func("[FAIL] Failed to get device memory")
         return False
 
     # Test all components
@@ -270,7 +280,7 @@ def test_error_state(driver, device):
     for name, component_type in components:
         error_state = driver.get_error_state(component_type)
         if error_state is None:
-            test_utils.print_func(f"❌ Failed to get error state for {name}")
+            test_utils.print_func(f"[FAIL] Failed to get error state for {name}")
             all_passed = False
             continue
 
@@ -280,9 +290,9 @@ def test_error_state(driver, device):
     # In a real system, errors would be set by the device itself
 
     if all_passed:
-        test_utils.print_func("✅ Error state test passed")
+        test_utils.print_func("[PASSED] Error state test passed")
     else:
-        test_utils.print_func("❌ Error state test failed")
+        test_utils.print_func("[FAIL] Error state test failed")
 
     return all_passed
 
@@ -307,11 +317,11 @@ def test_reset_component(driver, device):
     for name, component_type in components:
         test_utils.print_func(f"Resetting {name}...")
         if not driver.reset_component(component_type):
-            test_utils.print_func(f"❌ Failed to reset {name}")
+            test_utils.print_func(f"[FAIL] Failed to reset {name}")
             all_passed = False
             continue
 
-        test_utils.print_func(f"✅ {name} reset successfully")
+        test_utils.print_func(f"[PASSED] {name} reset successfully")
 
     # Test resetting all sensors at once
     test_utils.print_func("\nTesting reset_sensors function...")
@@ -319,10 +329,10 @@ def test_reset_component(driver, device):
         driver.reset_component(COMPONENT_TEMPERATURE)
         and driver.reset_component(COMPONENT_HUMIDITY)
     ):
-        test_utils.print_func("❌ Failed to reset all sensors")
+        test_utils.print_func("[FAIL] Failed to reset all sensors")
         all_passed = False
     else:
-        test_utils.print_func("✅ All sensors reset successfully")
+        test_utils.print_func("[PASSED] All sensors reset successfully")
 
     # Test resetting all actuators at once
     test_utils.print_func("\nTesting reset_actuators function...")
@@ -332,15 +342,15 @@ def test_reset_component(driver, device):
         and driver.reset_component(COMPONENT_HEATER)
         and driver.reset_component(COMPONENT_DOORS)
     ):
-        test_utils.print_func("❌ Failed to reset all actuators")
+        test_utils.print_func("[FAIL] Failed to reset all actuators")
         all_passed = False
     else:
-        test_utils.print_func("✅ All actuators reset successfully")
+        test_utils.print_func("[PASSED] All actuators reset successfully")
 
     if all_passed:
-        test_utils.print_func("✅ Reset component test passed")
+        test_utils.print_func("[PASSED] Reset component test passed")
     else:
-        test_utils.print_func("❌ Reset component test failed")
+        test_utils.print_func("[FAIL] Reset component test failed")
 
     return all_passed
 
@@ -365,7 +375,7 @@ def run_tests(driver, device):
     test_utils.print_func("\n=== Component Status Tests Summary ===")
     all_passed = True
     for name, result in results:
-        status = "✅ PASSED" if result else "❌ FAILED"
+        status = "[PASSED] PASSED" if result else "[FAIL] FAILED"
         test_utils.print_func(f"{name}: {status}")
         all_passed = all_passed and result
 
@@ -394,9 +404,9 @@ def main():
 
         # Print overall result
         if success:
-            test_utils.print_func("\n✅ All tests passed!")
+            test_utils.print_func("\n[PASSED] All tests passed!")
         else:
-            test_utils.print_func("\n❌ Some tests failed!")
+            test_utils.print_func("\n[FAIL] Some tests failed!")
 
         return 0 if success else 1
     finally:

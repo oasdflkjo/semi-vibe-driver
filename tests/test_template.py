@@ -31,7 +31,7 @@ def test_example(driver):
     # For example:
     status = DeviceStatus()
     if not driver.get_status(status):
-        test_utils.print_func("❌ Failed to get device status")
+        test_utils.print_func("[FAIL] Failed to get device status")
         return False
 
     test_utils.print_func(f"Device connected: {status.connected}")
@@ -66,7 +66,7 @@ def run_tests(driver):
     test_utils.print_func("\n=== Test Summary ===")
     all_passed = True
     for name, result in results:
-        status = "✅ PASSED" if result else "❌ FAILED"
+        status = "[PASSED] PASSED" if result else "[FAIL] FAILED"
         test_utils.print_func(f"{name}: {status}")
         all_passed = all_passed and result
 

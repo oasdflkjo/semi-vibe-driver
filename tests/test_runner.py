@@ -7,6 +7,7 @@ import os
 import importlib
 import inspect
 import sys
+import traceback
 
 # Add the tests directory to the path
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
@@ -55,8 +56,7 @@ def run_all_tests(driver, device=None):
     test_modules = discover_test_modules()
     print(f"\n=== Found {len(test_modules)} test modules ===")
 
-    all_results = []
-    all_passed = True
+    results = []
 
     for module_name in test_modules:
         try:
@@ -74,22 +74,23 @@ def run_all_tests(driver, device=None):
                 else:
                     result = module.run_tests(driver)
 
-                all_results.append((module_name, result))
-                all_passed = all_passed and result
+                results.append((module_name, result))
             else:
                 print(f"⚠️ {module_name} has no run_tests function")
         except Exception as e:
-            print(f"❌ Error in {module_name}: {str(e)}")
-            all_results.append((module_name, False))
-            all_passed = False
+            print(f"[ERROR] Error in {module_name}: {str(e)}")
+            traceback.print_exc()
+            results.append((module_name, False))
 
-    # Print overall summary
+    # Print summary
     print("\n=== TEST SUMMARY ===")
-    for module_name, result in all_results:
-        status = "✅ PASS" if result else "❌ FAIL"
+    all_passed = True
+    for module_name, result in results:
+        status = "[PASS]" if result else "[FAIL]"
         print(f"{status} - {module_name}")
+        all_passed = all_passed and result
 
-    overall_status = "✅ ALL TESTS PASSED" if all_passed else "❌ SOME TESTS FAILED"
-    print(f"\n{overall_status}")
+    overall_status = "[ALL TESTS PASSED]" if all_passed else "[SOME TESTS FAILED]"
+    print(f"\n{overall_status}\n")
 
     return all_passed

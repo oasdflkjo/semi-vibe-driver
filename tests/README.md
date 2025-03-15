@@ -33,7 +33,7 @@ def run_tests(driver, device=None):
     print("\n=== Test Summary ===")
     all_passed = True
     for name, result in results:
-        status = "✅ PASSED" if result else "❌ FAILED"
+        status = "[PASSED] PASSED" if result else "[FAIL] FAILED"
         print(f"{name}: {status}")
         all_passed = all_passed and result
     
