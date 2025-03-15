@@ -4,6 +4,11 @@ Test cases for heater actuator functionality.
 """
 
 
+## quick fix to disable print statements
+def print(string):
+    return
+
+
 def test_heater_range(driver):
     """Test heater control across the valid range (0-15)."""
     print("\n=== Testing Heater Range (Brute Force) ===")

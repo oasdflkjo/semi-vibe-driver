@@ -4,6 +4,11 @@ Test cases for LED actuator functionality.
 """
 
 
+## quick fix to disable print statements
+def print(string):
+    return
+
+
 def test_led_range(driver):
     """Test LED control across the full range (0-255)."""
     print("\n=== Testing LED Range (Brute Force) ===")

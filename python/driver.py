@@ -54,6 +54,8 @@ class Driver:
         self.log_callback = None
         self.initialized = False
         self.connected = False
+        self.dll_prints_enabled = True
+        self.wrapper_prints_enabled = True
 
         # Load the DLL
         dll_path = os.path.join(
@@ -108,7 +110,8 @@ class Driver:
 
             # Create log callback
             def log_callback_wrapper(message):
-                self.print_callback(f"[DRIVER] {message.decode('utf-8')}")
+                if self.dll_prints_enabled:
+                    self.print_callback(f"[DRIVER] {message.decode('utf-8')}")
 
             self.log_callback = LOGCALLBACK(log_callback_wrapper)
         except Exception as e:
@@ -117,7 +120,46 @@ class Driver:
 
     def _log(self, message):
         """Log a message using the callback or print."""
-        self.print_callback(f"[DRIVER] {message}")
+        if self.wrapper_prints_enabled:
+            self.print_callback(f"[DRIVER] {message}")
+
+    def enable_dll_prints(self, enabled=True):
+        """Enable or disable prints from the DLL.
+
+        Args:
+            enabled: Whether DLL prints should be enabled
+
+        Returns:
+            None
+        """
+        self.dll_prints_enabled = enabled
+
+    def disable_dll_prints(self):
+        """Disable prints from the DLL.
+
+        Returns:
+            None
+        """
+        self.dll_prints_enabled = False
+
+    def enable_wrapper_prints(self, enabled=True):
+        """Enable or disable prints from the wrapper.
+
+        Args:
+            enabled: Whether wrapper prints should be enabled
+
+        Returns:
+            None
+        """
+        self.wrapper_prints_enabled = enabled
+
+    def disable_wrapper_prints(self):
+        """Disable prints from the wrapper.
+
+        Returns:
+            None
+        """
+        self.wrapper_prints_enabled = False
 
     def init(self):
         """Initialize the driver."""

@@ -42,6 +42,8 @@ def run_tests():
     # Create and start the device
     print("Starting device server...")
     device = Device()
+    device.disable_dll_prints()
+    device.disable_wrapper_prints()
     if not device.start():
         print("❌ Failed to start device server")
         return 1
@@ -58,6 +60,8 @@ def run_tests():
     # Initialize driver and connect to device
     print("\nInitializing driver and connecting to device...")
     driver = Driver()
+    driver.disable_dll_prints()
+    driver.disable_wrapper_prints()
     if not driver.init():
         print("❌ Failed to initialize driver")
         device.stop()

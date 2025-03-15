@@ -4,6 +4,11 @@ Test cases for doors actuator functionality.
 """
 
 
+## quick fix to disable print statements
+def print(string):
+    return
+
+
 def test_doors_range(driver):
     """Test doors control with valid bit patterns."""
     print("\n=== Testing Doors Control ===")

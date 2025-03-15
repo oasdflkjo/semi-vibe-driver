@@ -4,6 +4,11 @@ Basic test cases for device connectivity.
 """
 
 
+## quick fix to disable print statements
+def print(string):
+    return
+
+
 def test_connection(driver):
     """Test basic connection to the device."""
     print("\n=== Testing Connection ===")

@@ -4,6 +4,11 @@ Test cases for temperature sensor functionality.
 """
 
 
+## quick fix to disable print statements
+def print(string):
+    return
+
+
 def test_temperature_sensor_range(driver, device):
     """Test temperature sensor across the full range (0-255)."""
     print("\n=== Testing Temperature Sensor Range (Brute Force) ===")

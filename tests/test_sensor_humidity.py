@@ -4,6 +4,11 @@ Test cases for humidity sensor functionality.
 """
 
 
+## quick fix to disable print statements
+def print(string):
+    return
+
+
 def test_humidity_sensor_range(driver, device):
     """Test humidity sensor across the full range (0-255)."""
     print("\n=== Testing Humidity Sensor Range (Brute Force) ===")

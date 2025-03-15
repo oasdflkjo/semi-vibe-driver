@@ -4,6 +4,11 @@ Test cases for power down functionality.
 """
 
 
+## quick fix to disable print statements
+def print(string):
+    return
+
+
 def test_power_sensors(driver):
     """Test powering sensors on and off."""
     print("\n=== Testing Sensor Power Control ===")

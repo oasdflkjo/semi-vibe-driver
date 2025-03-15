@@ -4,6 +4,11 @@ Test cases for fan actuator functionality.
 """
 
 
+## quick fix to disable print statements
+def print(string):
+    return
+
+
 def test_fan_range(driver):
     """Test fan control across the full range (0-255)."""
     print("\n=== Testing Fan Range (Brute Force) ===")
