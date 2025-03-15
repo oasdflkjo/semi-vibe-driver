@@ -25,7 +25,7 @@ jobs:
     
     - name: Configure CMake
       run: |
-        mkdir -p build
+        New-Item -Path build -ItemType Directory -Force
         cd build
         cmake -DCMAKE_BUILD_TYPE=Debug ..
       shell: pwsh
@@ -38,7 +38,7 @@ jobs:
     
     - name: Check Build Output
       run: |
-        ls -la build/bin/Debug
+        Get-ChildItem -Path build/bin/Debug -Force
         if (-not (Test-Path "build/bin/Debug/semi_vibe_device.dll")) {
           Write-Error "Device DLL not found!"
           exit 1
@@ -56,21 +56,25 @@ jobs:
     
     - name: Create Artifact Directory
       run: |
-        mkdir -p artifacts/include
-        mkdir -p artifacts/lib
-        mkdir -p artifacts/bin
+        New-Item -Path artifacts/include -ItemType Directory -Force
+        New-Item -Path artifacts/lib -ItemType Directory -Force
+        New-Item -Path artifacts/bin -ItemType Directory -Force
       shell: pwsh
     
     - name: Copy Headers and DLLs to Artifact Directory
       run: |
         # Copy header files
-        cp include/*.h artifacts/include/
+        Copy-Item -Path include/*.h -Destination artifacts/include/
         
         # Copy DLLs
-        cp build/bin/Debug/*.dll artifacts/bin/
+        Copy-Item -Path build/bin/Debug/*.dll -Destination artifacts/bin/
         
         # Copy lib files if they exist
-        cp build/lib/Debug/*.lib artifacts/lib/ || echo "No lib files found"
+        if (Test-Path "build/lib/Debug/*.lib") {
+          Copy-Item -Path build/lib/Debug/*.lib -Destination artifacts/lib/
+        } else {
+          Write-Host "No lib files found"
+        }
       shell: pwsh
     
     - name: Upload Artifacts

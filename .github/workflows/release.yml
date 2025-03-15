@@ -23,7 +23,7 @@ jobs:
     
     - name: Configure CMake
       run: |
-        mkdir -p build
+        New-Item -Path build -ItemType Directory -Force
         cd build
         cmake -DCMAKE_BUILD_TYPE=Release ..
       shell: pwsh
@@ -36,7 +36,7 @@ jobs:
     
     - name: Check Build Output
       run: |
-        ls -la build/bin/Release
+        Get-ChildItem -Path build/bin/Release -Force
         if (-not (Test-Path "build/bin/Release/semi_vibe_device.dll")) {
           Write-Error "Device DLL not found!"
           exit 1
@@ -50,28 +50,32 @@ jobs:
     - name: Run Tests
       run: |
         # Temporarily copy Release DLLs to Debug location for tests
-        mkdir -p build/bin/Debug
-        cp build/bin/Release/*.dll build/bin/Debug/
+        New-Item -Path build/bin/Debug -ItemType Directory -Force
+        Copy-Item -Path build/bin/Release/*.dll -Destination build/bin/Debug/
         python run_tests.py
       shell: pwsh
     
     - name: Create Artifact Directory
       run: |
-        mkdir -p artifacts/include
-        mkdir -p artifacts/lib
-        mkdir -p artifacts/bin
+        New-Item -Path artifacts/include -ItemType Directory -Force
+        New-Item -Path artifacts/lib -ItemType Directory -Force
+        New-Item -Path artifacts/bin -ItemType Directory -Force
       shell: pwsh
     
     - name: Copy Headers and DLLs to Artifact Directory
       run: |
         # Copy header files
-        cp include/*.h artifacts/include/
+        Copy-Item -Path include/*.h -Destination artifacts/include/
         
         # Copy DLLs
-        cp build/bin/Release/*.dll artifacts/bin/
+        Copy-Item -Path build/bin/Release/*.dll -Destination artifacts/bin/
         
         # Copy lib files if they exist
-        cp build/lib/Release/*.lib artifacts/lib/ || echo "No lib files found"
+        if (Test-Path "build/lib/Release/*.lib") {
+          Copy-Item -Path build/lib/Release/*.lib -Destination artifacts/lib/
+        } else {
+          Write-Host "No lib files found"
+        }
       shell: pwsh
     
     - name: Create ZIP Archive
