@@ -66,8 +66,11 @@ Contains the current status of different on-board components.
 
 #### `SENSOR`
 Contains the IDs and readings of the connected sensors.  
-For this example the sensors get random values everytime the Semi-Vibe-Driver receives a message.  
-They have ~1% chance to raise an error flag on `MAIN` 0x03 register.
+
+
+For this example the sensors get random values everytime the Semi-Vibe-Driver receives a message.   
+They have ~1% chance to raise an error flag on `MAIN` 0x03 register. 
+We intentianally left these two out from the device implementation!!!!!!!!!!
 
 Examples what these sensors could be:  
 A: Temperature. Reads the temperature and gives a value between 0 (freezing) and 255 (melting).  
@@ -128,3 +131,13 @@ Tables
 |0xFC|  0 | ad |  0 | ac |  0 | ab |  0 | aa | power_actuators
 |0xFD|  0 |  0 |  0 | sb |  0 |  0 |  0 | sa | reset_sensors
 |0xFE|  0 | ad |  0 | ac |  0 | ab |  0 | aa | reset_actuators
+
+
+Few notes:
+- connected_device values are not specked here and we assume 0 is not connected and !0 is connected
+- error state values are not specked here and we assume 0 is no error and !0 is error
+- power_state values are not specked here and we assume 0 is off and !0 is on
+- should we return error if we make a write to a device that is not connected?
+- can some of the devices be unconnected?
+- what is the difference between reset and power? typically reset is soft reset by grounding mcu software reset pin and power toggles Vdd.
+

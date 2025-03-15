@@ -6,6 +6,11 @@ Test runner for Semi-Vibe-Device simulator and driver.
 import os
 import importlib
 import inspect
+import sys
+
+# Add the tests directory to the path
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+import test_utils
 
 
 def discover_test_modules():
@@ -19,6 +24,8 @@ def discover_test_modules():
             filename.startswith("test_")
             and filename.endswith(".py")
             and filename != "test_runner.py"
+            and filename != "test_utils.py"
+            and filename != "test_template.py"
             and filename != "__init__.py"
         ):
             module_name = filename[:-3]  # Remove .py extension
@@ -30,7 +37,21 @@ def discover_test_modules():
 
 
 def run_all_tests(driver, device=None):
-    """Run all discovered tests."""
+    """Run all discovered tests.
+
+    Args:
+        driver: DriverDLL instance
+        device: DeviceDLL instance (optional)
+
+    Returns:
+        bool: True if all tests passed, False otherwise
+    """
+    # Set print function to disabled for test modules
+    test_utils.set_print_disabled()
+
+    # Disable callback prints for cleaner output
+    test_utils.disable_callback_prints()
+
     test_modules = discover_test_modules()
     print(f"\n=== Found {len(test_modules)} test modules ===")
 

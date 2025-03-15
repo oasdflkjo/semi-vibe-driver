@@ -3,96 +3,151 @@
 Test cases for doors actuator functionality.
 """
 
+import sys
+import os
+import ctypes
 
-## quick fix to disable print statements
-def print(string):
-    return
+# Add the python directory to the path
+sys.path.append(
+    os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "python")
+)
+from driver import DOOR_1, DOOR_2, DOOR_3, DOOR_4, DOOR_OPEN, DOOR_CLOSED
+import test_utils
 
 
-def test_doors_range(driver):
-    """Test doors control with valid bit patterns."""
-    print("\n=== Testing Doors Control ===")
+def test_doors_api(driver):
+    """Test doors control using the new door API."""
+    test_utils.print_func("\n=== Testing Doors Control (New API) ===")
 
-    # Get initial doors value
-    actuators = driver.get_actuators()
-    if not actuators:
-        print("❌ Failed to get actuator data")
-        return False
+    # Define all doors
+    doors = [DOOR_1, DOOR_2, DOOR_3, DOOR_4]
+    door_names = ["Door 1", "Door 2", "Door 3", "Door 4"]
 
-    initial_value = actuators["doors_value"]
-    print(f"Initial doors value: {initial_value}")
+    # Get initial door states
+    initial_states = {}
+    for door_id, door_name in zip(doors, door_names):
+        state = driver.get_door_state(door_id)
+        if state is None:
+            test_utils.print_func(f"❌ Failed to get initial state of {door_name}")
+            return False
+        initial_states[door_id] = state
+        state_name = "OPEN" if state == DOOR_OPEN else "CLOSED"
+        test_utils.print_func(f"Initial state of {door_name}: {state_name}")
 
-    # The doors only use bits 0, 2, 4, and 6 (mask 0x55 or 01010101 in binary)
-    # This means we should only test values where these bits are set
-    valid_values = []
-    for i in range(16):  # Generate all combinations of the 4 door bits
-        # Convert i to a 4-bit binary representation
-        # Then place each bit at positions 0, 2, 4, 6
-        value = 0
-        for bit_pos in range(4):
-            if (i & (1 << bit_pos)) != 0:
-                value |= 1 << (bit_pos * 2)
-        valid_values.append(value)
-
-    print(f"Testing {len(valid_values)} valid door configurations...")
-
-    # Test every valid value
+    # Test all 16 possible door configurations
+    test_utils.print_func(f"Testing all 16 possible door configurations...")
     all_passed = True
-    failed_values = []
 
-    for test_value in valid_values:
-        # Set doors to test value
-        if not driver.set_doors(test_value):
-            print(f"❌ Failed to set doors value to {test_value} (0x{test_value:02X})")
+    # Generate all 16 possible configurations (2^4 = 16)
+    for config_num in range(16):
+        # Convert configuration number to door states
+        door_states = {
+            DOOR_1: DOOR_OPEN if (config_num & 1) else DOOR_CLOSED,
+            DOOR_2: DOOR_OPEN if (config_num & 2) else DOOR_CLOSED,
+            DOOR_3: DOOR_OPEN if (config_num & 4) else DOOR_CLOSED,
+            DOOR_4: DOOR_OPEN if (config_num & 8) else DOOR_CLOSED,
+        }
+
+        # Print the configuration
+        config_desc = ", ".join(
+            [
+                f"Door {i+1}: {'OPEN' if door_states[doors[i]] == DOOR_OPEN else 'CLOSED'}"
+                for i in range(4)
+            ]
+        )
+        test_utils.print_func(f"\nTesting configuration {config_num}: {config_desc}")
+
+        # Set each door state individually using the door API
+        for door_id in doors:
+            state = door_states[door_id]
+            if not driver.set_door(door_id, state):
+                test_utils.print_func(
+                    f"❌ Failed to set Door {door_id} to {'OPEN' if state == DOOR_OPEN else 'CLOSED'}"
+                )
+                all_passed = False
+                continue
+
+        # Verify all door states individually using the door API
+        for door_id, door_name in zip(doors, door_names):
+            expected_state = door_states[door_id]
+            actual_state = driver.get_door_state(door_id)
+
+            if actual_state is None:
+                test_utils.print_func(f"❌ Failed to get state of {door_name}")
+                all_passed = False
+                continue
+
+            if actual_state != expected_state:
+                expected_name = "OPEN" if expected_state == DOOR_OPEN else "CLOSED"
+                actual_name = "OPEN" if actual_state == DOOR_OPEN else "CLOSED"
+                test_utils.print_func(
+                    f"❌ {door_name} state mismatch: expected {expected_name}, got {actual_name}"
+                )
+                all_passed = False
+                continue
+
+        test_utils.print_func(f"✅ Verified configuration {config_num}")
+
+    # Reset doors to initial states
+    test_utils.print_func(f"\nResetting doors to initial states...")
+    for door_id, door_name in zip(doors, door_names):
+        if not driver.set_door(door_id, initial_states[door_id]):
+            test_utils.print_func(f"❌ Failed to reset {door_name} to initial state")
             all_passed = False
-            failed_values.append(test_value)
             continue
 
-        # Verify the value
-        actuators = driver.get_actuators()
-        if not actuators:
-            print("❌ Failed to get updated actuator data")
+        # Verify reset
+        state = driver.get_door_state(door_id)
+        if state is None:
+            test_utils.print_func(f"❌ Failed to get state of {door_name} after reset")
             all_passed = False
-            failed_values.append(test_value)
             continue
 
-        if actuators["doors_value"] != test_value:
-            print(
-                f"❌ Doors value mismatch: expected {test_value} (0x{test_value:02X}), got {actuators['doors_value']} (0x{actuators['doors_value']:02X})"
+        if state != initial_states[door_id]:
+            expected_name = "OPEN" if initial_states[door_id] == DOOR_OPEN else "CLOSED"
+            actual_name = "OPEN" if state == DOOR_OPEN else "CLOSED"
+            test_utils.print_func(
+                f"❌ {door_name} state mismatch after reset: expected {expected_name}, got {actual_name}"
             )
             all_passed = False
-            failed_values.append(test_value)
             continue
 
-        print(f"✅ Tested doors value: {test_value} (0x{test_value:02X})")
-
-    # Reset doors to initial value
-    print(f"Resetting doors to initial value {initial_value}...")
-    if not driver.set_doors(initial_value):
-        print("❌ Failed to reset doors value")
-        return False
+        state_name = "OPEN" if state == DOOR_OPEN else "CLOSED"
+        test_utils.print_func(f"✅ Reset {door_name} to {state_name}")
 
     if all_passed:
-        print(f"✅ Doors test passed for all {len(valid_values)} valid configurations")
+        test_utils.print_func(f"✅ Doors test passed for all 16 configurations")
     else:
-        print(f"❌ Doors test failed for values: {failed_values}")
+        test_utils.print_func(f"❌ Doors test failed")
 
     return all_passed
 
 
 def run_tests(driver):
     """Run all doors tests."""
+    # When running as part of the test suite, disable print
+    test_utils.set_print_disabled()
+
     results = []
 
-    # Run doors test with valid configurations
-    results.append(("Doors Control", test_doors_range(driver)))
+    # Run doors test with the new API
+    results.append(("Doors Control", test_doors_api(driver)))
 
     # Print summary
-    print("\n=== Doors Tests Summary ===")
+    test_utils.print_func("\n=== Doors Tests Summary ===")
     all_passed = True
     for name, result in results:
         status = "✅ PASSED" if result else "❌ FAILED"
-        print(f"{name}: {status}")
+        test_utils.print_func(f"{name}: {status}")
         all_passed = all_passed and result
 
     return all_passed
+
+
+def main():
+    """Run the test in standalone mode."""
+    return test_utils.run_standalone_test(test_doors_api)
+
+
+if __name__ == "__main__":
+    sys.exit(main())

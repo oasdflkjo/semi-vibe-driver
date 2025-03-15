@@ -36,7 +36,6 @@ static HANDLE g_server_thread = NULL;
 // Forward declarations
 static bool process_command(const char *command, char *response);
 static void log_message(const char *format, ...);
-static void update_sensors();
 static THREAD_RETURN_TYPE handle_client(void *arg);
 
 EXPORT bool device_init(LogCallback log_callback) {
@@ -532,9 +531,6 @@ static bool process_command(const char *command, char *response) {
     format_message(&msg, response);
   }
 
-  // Update sensors
-  update_sensors();
-
   return true;
 }
 
@@ -548,13 +544,4 @@ static void log_message(const char *format, ...) {
 
     g_log_callback(buffer);
   }
-}
-
-static void update_sensors() {
-  // This function is now a no-op since we want fixed values for testing
-  // The sensor values are set during initialization and can be modified
-  // through the Python API directly
-
-  // No random updates or error generation
-  return;
 }
