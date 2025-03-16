@@ -15,7 +15,7 @@ extern "C" {
 #endif
 
 // Callback function type for logging
-typedef void (*CommLogCallback)(const char *message);
+typedef void (*CommLogCallback)(const char *message, void *user_data);
 
 // Socket handle type
 typedef SOCKET socket_t;
@@ -28,8 +28,10 @@ typedef struct
     bool initialized;
     bool connected;
     CommLogCallback log_callback;
+    void *user_data;
     char *host;
     int port;
+    unsigned int timeout_ms;
 } CommContext;
 
 /**
@@ -37,9 +39,10 @@ typedef struct
  *
  * @param context Communication context to initialize
  * @param log_callback Optional callback for logging
+ * @param user_data User data to pass to the callback
  * @return true if initialization was successful
  */
-bool comm_init(CommContext *context, CommLogCallback log_callback);
+bool comm_init(CommContext *context, CommLogCallback log_callback, void *user_data);
 
 /**
  * @brief Connect to a server
@@ -86,6 +89,15 @@ void comm_log(CommContext *context, const char *format, ...);
  * @param context Communication context
  */
 void comm_cleanup(CommContext *context);
+
+/**
+ * @brief Set the operation timeout
+ *
+ * @param context Communication context
+ * @param timeout_ms Timeout in milliseconds
+ * @return true if successful, false otherwise
+ */
+bool comm_set_timeout(CommContext *context, unsigned int timeout_ms);
 
 #ifdef __cplusplus
 }

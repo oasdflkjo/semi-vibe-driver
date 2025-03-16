@@ -5,7 +5,16 @@ This script provides a direct 1:1 interface to the driver DLL functions with zer
 
 import ctypes
 import os
-from ctypes import c_bool, c_char_p, c_uint8, c_int, CFUNCTYPE, Structure, POINTER
+from ctypes import (
+    c_bool,
+    c_char_p,
+    c_uint8,
+    c_int,
+    CFUNCTYPE,
+    Structure,
+    POINTER,
+    c_void_p,
+)
 
 # Define the callback function type
 LOGCALLBACK = CFUNCTYPE(None, c_char_p)
@@ -27,6 +36,20 @@ COMPONENT_LED = 2
 COMPONENT_FAN = 3
 COMPONENT_HEATER = 4
 COMPONENT_DOORS = 5
+
+# Error codes
+DRIVER_ERROR_NONE = 0
+DRIVER_ERROR_INVALID_PARAMETER = 1
+DRIVER_ERROR_NOT_INITIALIZED = 2
+DRIVER_ERROR_ALREADY_INITIALIZED = 3
+DRIVER_ERROR_NOT_CONNECTED = 4
+DRIVER_ERROR_ALREADY_CONNECTED = 5
+DRIVER_ERROR_CONNECTION_FAILED = 6
+DRIVER_ERROR_COMMUNICATION_FAILED = 7
+DRIVER_ERROR_PROTOCOL_ERROR = 8
+DRIVER_ERROR_DEVICE_ERROR = 9
+DRIVER_ERROR_INTERNAL = 10
+DRIVER_ERROR_RESOURCE_UNAVAILABLE = 11
 
 
 # Define the structures to match the C structures
@@ -77,63 +100,119 @@ class DriverDLL:
 
         self.dll = ctypes.WinDLL(dll_path)
         self._callback = None  # Store the callback to prevent garbage collection
+        self._handle = None  # Store the driver handle
+        self._error_code = c_int(0)  # Store the error code
 
-        # Define function prototypes
-        self.dll.driver_init.argtypes = [LOGCALLBACK]
-        self.dll.driver_init.restype = c_bool
+        # Define function prototypes for the new handle-based API
+        self.dll.driver_create.argtypes = [
+            POINTER(c_void_p),
+            LOGCALLBACK,
+            POINTER(c_int),
+        ]
+        self.dll.driver_create.restype = c_bool
 
-        self.dll.driver_connect.argtypes = [c_char_p, c_int]
+        self.dll.driver_destroy.argtypes = [c_void_p, POINTER(c_int)]
+        self.dll.driver_destroy.restype = c_bool
+
+        self.dll.driver_get_last_error_message.argtypes = [c_void_p, c_char_p, c_int]
+        self.dll.driver_get_last_error_message.restype = c_bool
+
+        self.dll.driver_set_timeout.argtypes = [c_void_p, c_uint8, POINTER(c_int)]
+        self.dll.driver_set_timeout.restype = c_bool
+
+        self.dll.driver_connect.argtypes = [c_void_p, c_char_p, c_int, POINTER(c_int)]
         self.dll.driver_connect.restype = c_bool
 
-        self.dll.driver_disconnect.argtypes = []
+        self.dll.driver_disconnect.argtypes = [c_void_p, POINTER(c_int)]
         self.dll.driver_disconnect.restype = c_bool
 
-        self.dll.driver_get_status.argtypes = [POINTER(DeviceStatus)]
+        self.dll.driver_get_status.argtypes = [
+            c_void_p,
+            POINTER(DeviceStatus),
+            POINTER(c_int),
+        ]
         self.dll.driver_get_status.restype = c_bool
 
-        self.dll.driver_get_humidity.argtypes = [POINTER(c_uint8)]
+        self.dll.driver_get_humidity.argtypes = [
+            c_void_p,
+            POINTER(c_uint8),
+            POINTER(c_int),
+        ]
         self.dll.driver_get_humidity.restype = c_bool
 
-        self.dll.driver_get_temperature.argtypes = [POINTER(c_uint8)]
+        self.dll.driver_get_temperature.argtypes = [
+            c_void_p,
+            POINTER(c_uint8),
+            POINTER(c_int),
+        ]
         self.dll.driver_get_temperature.restype = c_bool
 
-        self.dll.driver_set_led.argtypes = [c_uint8]
+        self.dll.driver_set_led.argtypes = [c_void_p, c_uint8, POINTER(c_int)]
         self.dll.driver_set_led.restype = c_bool
 
-        self.dll.driver_get_led.argtypes = [POINTER(c_uint8)]
+        self.dll.driver_get_led.argtypes = [c_void_p, POINTER(c_uint8), POINTER(c_int)]
         self.dll.driver_get_led.restype = c_bool
 
-        self.dll.driver_set_fan.argtypes = [c_uint8]
+        self.dll.driver_set_fan.argtypes = [c_void_p, c_uint8, POINTER(c_int)]
         self.dll.driver_set_fan.restype = c_bool
 
-        self.dll.driver_get_fan.argtypes = [POINTER(c_uint8)]
+        self.dll.driver_get_fan.argtypes = [c_void_p, POINTER(c_uint8), POINTER(c_int)]
         self.dll.driver_get_fan.restype = c_bool
 
-        self.dll.driver_set_heater.argtypes = [c_uint8]
+        self.dll.driver_set_heater.argtypes = [c_void_p, c_uint8, POINTER(c_int)]
         self.dll.driver_set_heater.restype = c_bool
 
-        self.dll.driver_get_heater.argtypes = [POINTER(c_uint8)]
+        self.dll.driver_get_heater.argtypes = [
+            c_void_p,
+            POINTER(c_uint8),
+            POINTER(c_int),
+        ]
         self.dll.driver_get_heater.restype = c_bool
 
-        self.dll.driver_set_door.argtypes = [c_int, c_int]
+        self.dll.driver_set_door.argtypes = [c_void_p, c_int, c_int, POINTER(c_int)]
         self.dll.driver_set_door.restype = c_bool
 
-        self.dll.driver_get_door_state.argtypes = [c_int, POINTER(c_int)]
+        self.dll.driver_get_door_state.argtypes = [
+            c_void_p,
+            c_int,
+            POINTER(c_int),
+            POINTER(c_int),
+        ]
         self.dll.driver_get_door_state.restype = c_bool
 
-        self.dll.driver_get_power_state.argtypes = [c_int, POINTER(c_bool)]
+        self.dll.driver_get_power_state.argtypes = [
+            c_void_p,
+            c_int,
+            POINTER(c_bool),
+            POINTER(c_int),
+        ]
         self.dll.driver_get_power_state.restype = c_bool
 
-        self.dll.driver_get_error_state.argtypes = [c_int, POINTER(c_bool)]
+        self.dll.driver_get_error_state.argtypes = [
+            c_void_p,
+            c_int,
+            POINTER(c_bool),
+            POINTER(c_int),
+        ]
         self.dll.driver_get_error_state.restype = c_bool
 
-        self.dll.driver_set_power_state.argtypes = [c_int, c_bool]
+        self.dll.driver_set_power_state.argtypes = [
+            c_void_p,
+            c_int,
+            c_bool,
+            POINTER(c_int),
+        ]
         self.dll.driver_set_power_state.restype = c_bool
 
-        self.dll.driver_reset_component.argtypes = [c_int]
+        self.dll.driver_reset_component.argtypes = [c_void_p, c_int, POINTER(c_int)]
         self.dll.driver_reset_component.restype = c_bool
 
-        self.dll.driver_send_command.argtypes = [c_char_p, c_char_p]
+        self.dll.driver_send_command.argtypes = [
+            c_void_p,
+            c_char_p,
+            c_char_p,
+            POINTER(c_int),
+        ]
         self.dll.driver_send_command.restype = c_bool
 
     def set_log_callback(self, log_callback):
@@ -160,7 +239,7 @@ class DriverDLL:
         """
         if self._callback is None:
             return False
-        return self.dll.driver_init(self._callback)
+        return self.init(self._callback)
 
     def init(self, log_callback):
         """Initialize the driver.
@@ -172,7 +251,13 @@ class DriverDLL:
             bool: True if successful
         """
         self._callback = LOGCALLBACK(log_callback)
-        return self.dll.driver_init(self._callback)
+        handle_ptr = c_void_p()
+        result = self.dll.driver_create(
+            ctypes.byref(handle_ptr), self._callback, ctypes.byref(self._error_code)
+        )
+        if result:
+            self._handle = handle_ptr
+        return result
 
     def connect(self, host, port):
         """Connect to the device.
@@ -184,8 +269,12 @@ class DriverDLL:
         Returns:
             bool: True if successful
         """
+        if self._handle is None:
+            return False
         host_bytes = host.encode("utf-8")
-        return self.dll.driver_connect(host_bytes, port)
+        return self.dll.driver_connect(
+            self._handle, host_bytes, port, ctypes.byref(self._error_code)
+        )
 
     def disconnect(self):
         """Disconnect from the device.
@@ -193,7 +282,9 @@ class DriverDLL:
         Returns:
             bool: True if successful
         """
-        return self.dll.driver_disconnect()
+        if self._handle is None:
+            return False
+        return self.dll.driver_disconnect(self._handle, ctypes.byref(self._error_code))
 
     def get_status(self, status):
         """Get device status.
@@ -204,7 +295,11 @@ class DriverDLL:
         Returns:
             bool: True if successful
         """
-        return self.dll.driver_get_status(ctypes.byref(status))
+        if self._handle is None:
+            return False
+        return self.dll.driver_get_status(
+            self._handle, ctypes.byref(status), ctypes.byref(self._error_code)
+        )
 
     def get_humidity(self):
         """Get humidity value.
@@ -212,8 +307,12 @@ class DriverDLL:
         Returns:
             int: Humidity value (0-100) or None if failed
         """
+        if self._handle is None:
+            return None
         value = c_uint8()
-        if self.dll.driver_get_humidity(ctypes.byref(value)):
+        if self.dll.driver_get_humidity(
+            self._handle, ctypes.byref(value), ctypes.byref(self._error_code)
+        ):
             return value.value
         return None
 
@@ -223,8 +322,12 @@ class DriverDLL:
         Returns:
             int: Temperature value (0-100) or None if failed
         """
+        if self._handle is None:
+            return None
         value = c_uint8()
-        if self.dll.driver_get_temperature(ctypes.byref(value)):
+        if self.dll.driver_get_temperature(
+            self._handle, ctypes.byref(value), ctypes.byref(self._error_code)
+        ):
             return value.value
         return None
 
@@ -237,7 +340,11 @@ class DriverDLL:
         Returns:
             bool: True if successful
         """
-        return self.dll.driver_set_led(value)
+        if self._handle is None:
+            return False
+        return self.dll.driver_set_led(
+            self._handle, value, ctypes.byref(self._error_code)
+        )
 
     def get_led(self):
         """Get LED value.
@@ -245,8 +352,12 @@ class DriverDLL:
         Returns:
             int: LED value (0-255) or None if failed
         """
+        if self._handle is None:
+            return None
         value = c_uint8()
-        if self.dll.driver_get_led(ctypes.byref(value)):
+        if self.dll.driver_get_led(
+            self._handle, ctypes.byref(value), ctypes.byref(self._error_code)
+        ):
             return value.value
         return None
 
@@ -259,7 +370,11 @@ class DriverDLL:
         Returns:
             bool: True if successful
         """
-        return self.dll.driver_set_fan(value)
+        if self._handle is None:
+            return False
+        return self.dll.driver_set_fan(
+            self._handle, value, ctypes.byref(self._error_code)
+        )
 
     def get_fan(self):
         """Get fan value.
@@ -267,8 +382,12 @@ class DriverDLL:
         Returns:
             int: Fan speed (0-255) or None if failed
         """
+        if self._handle is None:
+            return None
         value = c_uint8()
-        if self.dll.driver_get_fan(ctypes.byref(value)):
+        if self.dll.driver_get_fan(
+            self._handle, ctypes.byref(value), ctypes.byref(self._error_code)
+        ):
             return value.value
         return None
 
@@ -281,7 +400,11 @@ class DriverDLL:
         Returns:
             bool: True if successful
         """
-        return self.dll.driver_set_heater(value)
+        if self._handle is None:
+            return False
+        return self.dll.driver_set_heater(
+            self._handle, value, ctypes.byref(self._error_code)
+        )
 
     def get_heater(self):
         """Get heater value.
@@ -289,8 +412,12 @@ class DriverDLL:
         Returns:
             int: Heater value (0-15) or None if failed
         """
+        if self._handle is None:
+            return None
         value = c_uint8()
-        if self.dll.driver_get_heater(ctypes.byref(value)):
+        if self.dll.driver_get_heater(
+            self._handle, ctypes.byref(value), ctypes.byref(self._error_code)
+        ):
             return value.value
         return None
 
@@ -304,7 +431,11 @@ class DriverDLL:
         Returns:
             bool: True if successful
         """
-        return self.dll.driver_set_door(door_id, state)
+        if self._handle is None:
+            return False
+        return self.dll.driver_set_door(
+            self._handle, door_id, state, ctypes.byref(self._error_code)
+        )
 
     def get_door_state(self, door_id):
         """Get the state of a specific door.
@@ -315,8 +446,12 @@ class DriverDLL:
         Returns:
             int: Door state (DOOR_OPEN or DOOR_CLOSED) or None if failed
         """
+        if self._handle is None:
+            return None
         state = c_int()
-        if self.dll.driver_get_door_state(door_id, ctypes.byref(state)):
+        if self.dll.driver_get_door_state(
+            self._handle, door_id, ctypes.byref(state), ctypes.byref(self._error_code)
+        ):
             return state.value
         return None
 
@@ -329,8 +464,15 @@ class DriverDLL:
         Returns:
             bool: True if powered, False if not powered, None if failed
         """
+        if self._handle is None:
+            return None
         powered = c_bool()
-        if self.dll.driver_get_power_state(component_type, ctypes.byref(powered)):
+        if self.dll.driver_get_power_state(
+            self._handle,
+            component_type,
+            ctypes.byref(powered),
+            ctypes.byref(self._error_code),
+        ):
             return powered.value
         return None
 
@@ -343,8 +485,15 @@ class DriverDLL:
         Returns:
             bool: True if error, False if no error, None if failed
         """
+        if self._handle is None:
+            return None
         has_error = c_bool()
-        if self.dll.driver_get_error_state(component_type, ctypes.byref(has_error)):
+        if self.dll.driver_get_error_state(
+            self._handle,
+            component_type,
+            ctypes.byref(has_error),
+            ctypes.byref(self._error_code),
+        ):
             return has_error.value
         return None
 
@@ -358,7 +507,11 @@ class DriverDLL:
         Returns:
             bool: True if successful
         """
-        return self.dll.driver_set_power_state(component_type, powered)
+        if self._handle is None:
+            return False
+        return self.dll.driver_set_power_state(
+            self._handle, component_type, powered, ctypes.byref(self._error_code)
+        )
 
     def reset_component(self, component_type):
         """Reset a specific component.
@@ -369,7 +522,11 @@ class DriverDLL:
         Returns:
             bool: True if successful
         """
-        return self.dll.driver_reset_component(component_type)
+        if self._handle is None:
+            return False
+        return self.dll.driver_reset_component(
+            self._handle, component_type, ctypes.byref(self._error_code)
+        )
 
     def send_command(self, command, response_buffer):
         """Send a raw command to the device.
@@ -381,5 +538,15 @@ class DriverDLL:
         Returns:
             bool: True if successful
         """
+        if self._handle is None:
+            return False
         command_bytes = command.encode("utf-8")
-        return self.dll.driver_send_command(command_bytes, response_buffer)
+        return self.dll.driver_send_command(
+            self._handle, command_bytes, response_buffer, ctypes.byref(self._error_code)
+        )
+
+    def __del__(self):
+        """Clean up resources."""
+        if hasattr(self, "_handle") and self._handle is not None:
+            self.dll.driver_destroy(self._handle, ctypes.byref(self._error_code))
+            self._handle = None

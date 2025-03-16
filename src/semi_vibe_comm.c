@@ -17,6 +17,7 @@
 #define BUFFER_SIZE 256
 #define DEFAULT_PORT 8989
 #define DEFAULT_HOST "localhost"
+#define DEFAULT_TIMEOUT_MS 5000
 
 /**
  * @brief Log a message using the callback if set
@@ -35,8 +36,43 @@ void comm_log(CommContext *context, const char *format, ...)
         vsnprintf(buffer, BUFFER_SIZE, format, args);
         va_end(args);
 
-        context->log_callback(buffer);
+        context->log_callback(buffer, context->user_data);
     }
+}
+
+/**
+ * @brief Set the operation timeout
+ *
+ * @param context Communication context
+ * @param timeout_ms Timeout in milliseconds
+ * @return true if successful, false otherwise
+ */
+bool comm_set_timeout(CommContext *context, unsigned int timeout_ms)
+{
+    if (!context)
+    {
+        return false;
+    }
+
+    context->timeout_ms = timeout_ms;
+
+    // If socket is already connected, update its timeout
+    if (context->connected && context->socket != SOCKET_ERROR_VALUE)
+    {
+        DWORD timeout = (DWORD)timeout_ms;
+        if (setsockopt(context->socket, SOL_SOCKET, SO_RCVTIMEO, (const char *)&timeout, sizeof(timeout)) < 0)
+        {
+            comm_log(context, "Failed to set receive timeout");
+            return false;
+        }
+        if (setsockopt(context->socket, SOL_SOCKET, SO_SNDTIMEO, (const char *)&timeout, sizeof(timeout)) < 0)
+        {
+            comm_log(context, "Failed to set send timeout");
+            return false;
+        }
+    }
+
+    return true;
 }
 
 /**
@@ -44,32 +80,34 @@ void comm_log(CommContext *context, const char *format, ...)
  *
  * @param context Communication context to initialize
  * @param log_callback Optional callback for logging
+ * @param user_data User data to pass to the callback
  * @return true if initialization was successful
  */
-bool comm_init(CommContext *context, CommLogCallback log_callback)
+bool comm_init(CommContext *context, CommLogCallback log_callback, void *user_data)
 {
     if (!context)
     {
         return false;
     }
 
-    // Initialize context
-    context->socket = SOCKET_ERROR_VALUE;
-    context->initialized = false;
-    context->connected = false;
-    context->log_callback = log_callback;
-    context->host = NULL;
-    context->port = 0;
-
     // Initialize Winsock
     WSADATA wsaData;
     if (WSAStartup(MAKEWORD(2, 2), &wsaData) != 0)
     {
-        comm_log(context, "WSAStartup failed");
         return false;
     }
 
+    // Initialize context
+    memset(context, 0, sizeof(CommContext));
+    context->socket = SOCKET_ERROR_VALUE;
     context->initialized = true;
+    context->connected = false;
+    context->log_callback = log_callback;
+    context->user_data = user_data;
+    context->host = NULL;
+    context->port = 0;
+    context->timeout_ms = DEFAULT_TIMEOUT_MS;
+
     comm_log(context, "Communication layer initialized");
     return true;
 }
@@ -112,6 +150,23 @@ bool comm_connect(CommContext *context, const char *host, int port)
     if (context->socket == SOCKET_ERROR_VALUE)
     {
         comm_log(context, "Failed to create socket");
+        return false;
+    }
+
+    // Set socket timeouts
+    DWORD timeout = (DWORD)context->timeout_ms;
+    if (setsockopt(context->socket, SOL_SOCKET, SO_RCVTIMEO, (const char *)&timeout, sizeof(timeout)) < 0)
+    {
+        comm_log(context, "Failed to set receive timeout");
+        close_socket(context->socket);
+        context->socket = SOCKET_ERROR_VALUE;
+        return false;
+    }
+    if (setsockopt(context->socket, SOL_SOCKET, SO_SNDTIMEO, (const char *)&timeout, sizeof(timeout)) < 0)
+    {
+        comm_log(context, "Failed to set send timeout");
+        close_socket(context->socket);
+        context->socket = SOCKET_ERROR_VALUE;
         return false;
     }
 
