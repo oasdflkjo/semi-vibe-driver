@@ -1,6 +1,9 @@
 /**
  * @file semi_vibe_protocol.h
  * @brief Protocol definitions for the Semi-Vibe-Device
+ *
+ * @copyright Copyright (c) 2024 Semi-Vibe Technologies, Inc.
+ * @license MIT License with Attribution Requirement. See LICENSE.md for details.
  */
 
 #ifndef SEMI_VIBE_PROTOCOL_H

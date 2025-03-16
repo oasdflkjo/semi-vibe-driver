@@ -1,3 +1,89 @@
+# Semi-Vibe-Driver
+
+## Overview
+
+Semi-Vibe-Driver is a software library developed by Semi-Vibe Technologies, Inc. for interfacing with Semi-Vibe-Device hardware. This driver provides a comprehensive API for controlling and monitoring all aspects of the Semi-Vibe-Device.
+
+## Features
+
+- Complete control of all device actuators (LED, fan, heater, doors)
+- Real-time monitoring of all device sensors (temperature, humidity)
+- Comprehensive error handling and reporting
+- Thread-safe implementation for multi-threaded applications
+- Memory-safe implementation with robust bounds checking
+- Detailed logging capabilities
+
+## License
+
+This software is licensed under the MIT License with Attribution Requirement. This means you are free to use, modify, and distribute the software, provided you include the original copyright notice and an acknowledgment of Semi-Vibe Technologies, Inc. in your product. See LICENSE.md for the full license text.
+
+## Requirements
+
+- Windows 10 or later
+- C99-compatible compiler
+- WinSock2 library
+
+## Usage
+
+The Semi-Vibe-Driver is designed to be integrated into applications that need to interface with Semi-Vibe-Device hardware. The driver provides a simple, intuitive API for controlling all aspects of the device.
+
+### Basic Usage Example
+
+```c
+#include "semi_vibe_driver.h"
+#include <stdio.h>
+
+void log_callback(const char *message) {
+    printf("Driver: %s\n", message);
+}
+
+int main() {
+    // Initialize the driver
+    if (!driver_init(log_callback)) {
+        printf("Failed to initialize driver\n");
+        return 1;
+    }
+    
+    // Connect to the device
+    if (!driver_connect("localhost", 8989)) {
+        printf("Failed to connect to device\n");
+        return 1;
+    }
+    
+    // Set LED brightness to 50%
+    driver_set_led(128);
+    
+    // Turn on the fan at full speed
+    driver_set_fan(255);
+    
+    // Read temperature
+    uint8_t temperature;
+    if (driver_get_temperature(&temperature)) {
+        printf("Temperature: %d\n", temperature);
+    }
+    
+    // Disconnect from the device
+    driver_disconnect();
+    
+    return 0;
+}
+```
+
+## Contact
+
+For licensing inquiries or technical support, please contact:
+
+Semi-Vibe Technologies, Inc.  
+Email: support@semi-vibe-tech.com  
+Website: https://www.semi-vibe-tech.com
+
+## Legal Notice
+
+© 2024 Semi-Vibe Technologies, Inc. All Rights Reserved.
+
+This software is licensed under the MIT License with Attribution Requirement. 
+See LICENSE.md for the full license text.
+
 # Semi-Vibe-Driver Project
 
 ![example workflow](https://github.com/oasdflkjo/semi-vibe-driver/actions/workflows/build-and-test.yml/badge.svg)

@@ -1,6 +1,9 @@
 /**
  * @file semi_vibe_driver.c
  * @brief Implementation of the Semi-Vibe-Driver
+ *
+ * @copyright Copyright (c) 2024 Semi-Vibe Technologies, Inc.
+ * @license MIT License with Attribution Requirement. See LICENSE.md for details.
  */
 
 #include "../include/semi_vibe_driver.h"

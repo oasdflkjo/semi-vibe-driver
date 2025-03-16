@@ -1,6 +1,9 @@
 /**
  * @file semi_vibe_comm.c
  * @brief Implementation of the communication layer for the Semi-Vibe protocol
+ *
+ * @copyright Copyright (c) 2024 Semi-Vibe Technologies, Inc.
+ * @license MIT License with Attribution Requirement. See LICENSE.md for details.
  */
 
 #include "../include/semi_vibe_comm.h"
