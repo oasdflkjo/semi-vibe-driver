@@ -281,23 +281,53 @@ bool comm_disconnect(CommContext *context, bool send_exit)
 {
     if (!context || !context->connected)
     {
-        return true;
+        return true; // Already disconnected
     }
+
+    bool result = true;
 
     // Send exit command if requested
     if (send_exit)
     {
-        const char *exit_command = "exit";
-        send(context->socket, exit_command, (int)strlen(exit_command), 0);
+        comm_log(context, "Sending exit command to device");
+
+        // Send the exit command
+        const char *exit_cmd = "exit";
+        if (send(context->socket, exit_cmd, 4, 0) < 0)
+        {
+            int error = WSAGetLastError();
+            comm_log(context, "Failed to send exit command (error code: %d)", error);
+            // Continue with disconnection even if exit command fails
+            result = false;
+        }
+        else
+        {
+            // Wait a short time for the device to process the exit command
+            Sleep(100);
+        }
     }
 
-    // Close socket
-    close_socket(context->socket);
-    context->socket = SOCKET_ERROR_VALUE;
+    // Close the socket
+    if (context->socket != SOCKET_ERROR_VALUE)
+    {
+        comm_log(context, "Closing socket connection");
+        shutdown(context->socket, SD_BOTH);
+        close_socket(context->socket);
+        context->socket = SOCKET_ERROR_VALUE;
+    }
+
+    // Update connection state
     context->connected = false;
 
+    // Free host string if allocated
+    if (context->host)
+    {
+        free(context->host);
+        context->host = NULL;
+    }
+
     comm_log(context, "Disconnected from device");
-    return true;
+    return result;
 }
 
 /**

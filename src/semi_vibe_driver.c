@@ -820,9 +820,26 @@ EXPORT bool driver_set_heater(DriverHandle handle, uint8_t value, int *error_cod
         return false;
     }
 
-    // Only use lower 4 bits
-    uint8_t heater_value = value & 0x0F;
-    bool result = write_register(driver, BASE_ACTUATOR, OFFSET_HEATER, heater_value);
+    // Only use lower 4 bits as per LAW.md (heater is 0-15)
+    uint8_t heater_value = value & MASK_HEATER_VALUE;
+
+    // Read current value to preserve reserved bits
+    uint8_t current_value;
+    if (!read_register(driver, BASE_ACTUATOR, OFFSET_HEATER, &current_value))
+    {
+        // Error already set by read_register
+        LeaveCriticalSection(&driver->lock);
+        if (error_code)
+        {
+            *error_code = driver->last_error;
+        }
+        return false;
+    }
+
+    // Preserve the reserved bits (upper 4 bits)
+    uint8_t new_value = (current_value & ~MASK_HEATER_VALUE) | heater_value;
+
+    bool result = write_register(driver, BASE_ACTUATOR, OFFSET_HEATER, new_value);
 
     // Release lock
     LeaveCriticalSection(&driver->lock);
@@ -977,8 +994,12 @@ EXPORT bool driver_set_door(DriverHandle handle, int door_id, int state, int *er
         new_value = current_value & ~(1 << bit_position); // Clear bit
     }
 
-    // Write the new value (ensuring only valid bits are set)
-    bool result = write_register(driver, BASE_ACTUATOR, OFFSET_DOORS, new_value & MASK_DOORS_VALUE);
+    // Ensure we only modify valid bits (bits 0,2,4,6) as per LAW.md
+    // MASK_DOORS_VALUE is 0x55 (01010101 in binary) which masks bits 0,2,4,6
+    new_value = (current_value & ~MASK_DOORS_VALUE) | (new_value & MASK_DOORS_VALUE);
+
+    // Write the new value
+    bool result = write_register(driver, BASE_ACTUATOR, OFFSET_DOORS, new_value);
 
     // Verify the write operation by reading back the value
     if (result)
@@ -1141,6 +1162,57 @@ static bool send_and_receive(struct DriverHandle *handle, const SemiVibeMessage 
 }
 
 /**
+ * @brief Validate register access permissions
+ *
+ * @param base Base register address
+ * @param offset Register offset
+ * @param is_write Whether this is a write operation
+ * @return true if access is allowed, false otherwise
+ */
+static bool validate_register_access(uint8_t base, uint8_t offset, bool is_write)
+{
+    // BASE_RESERVED (0x0) is not accessible
+    if (base == BASE_RESERVED)
+    {
+        return false;
+    }
+
+    // BASE_MAIN (0x1) and BASE_SENSOR (0x2) are read-only
+    if (is_write && (base == BASE_MAIN || base == BASE_SENSOR))
+    {
+        return false;
+    }
+
+    // BASE_ACTUATOR (0x3) and BASE_CONTROL (0x4) are read/write
+    if (base == BASE_ACTUATOR)
+    {
+        // For heater, ensure we're only writing to the lower 4 bits
+        if (is_write && offset == OFFSET_HEATER)
+        {
+            return true; // We mask the value in driver_set_heater
+        }
+
+        // For doors, ensure we're only writing to the valid bits (0,2,4,6)
+        if (is_write && offset == OFFSET_DOORS)
+        {
+            return true; // We mask the value in driver_set_door
+        }
+
+        return true;
+    }
+
+    if (base == BASE_CONTROL)
+    {
+        // Only specific control registers are valid
+        return (offset == OFFSET_POWER_SENSORS || offset == OFFSET_POWER_ACTUATORS || offset == OFFSET_RESET_SENSORS ||
+                offset == OFFSET_RESET_ACTUATORS);
+    }
+
+    // Default to allowing access
+    return true;
+}
+
+/**
  * @brief Read a register value
  *
  * @param handle Driver handle
@@ -1160,6 +1232,13 @@ static bool read_register(struct DriverHandle *handle, uint8_t base, uint8_t off
     if (!handle->comm_context.connected)
     {
         set_last_error(handle, DRIVER_ERROR_NOT_CONNECTED, "Not connected to device");
+        return false;
+    }
+
+    // Validate register access
+    if (!validate_register_access(base, offset, false))
+    {
+        set_last_error(handle, DRIVER_ERROR_INVALID_PARAMETER, "Invalid register access (read)");
         return false;
     }
 
@@ -1219,6 +1298,13 @@ static bool write_register(struct DriverHandle *handle, uint8_t base, uint8_t of
     if (!handle->comm_context.connected)
     {
         set_last_error(handle, DRIVER_ERROR_NOT_CONNECTED, "Not connected to device");
+        return false;
+    }
+
+    // Validate register access
+    if (!validate_register_access(base, offset, true))
+    {
+        set_last_error(handle, DRIVER_ERROR_INVALID_PARAMETER, "Invalid register access (write)");
         return false;
     }
 
