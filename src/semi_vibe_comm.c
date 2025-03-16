@@ -107,6 +107,7 @@ bool comm_init(CommContext *context, CommLogCallback log_callback, void *user_da
     context->host = NULL;
     context->port = 0;
     context->timeout_ms = DEFAULT_TIMEOUT_MS;
+    context->last_error = COMM_ERROR_NONE;
 
     comm_log(context, "Communication layer initialized");
     return true;
@@ -143,6 +144,11 @@ bool comm_connect(CommContext *context, const char *host, int port)
         free(context->host);
     }
     context->host = _strdup(host_to_use);
+    if (context->host == NULL)
+    {
+        comm_log(context, "Failed to allocate memory for host name");
+        return false;
+    }
     context->port = port_to_use;
 
     // Create socket
@@ -274,7 +280,17 @@ bool comm_send_receive(CommContext *context, const char *message, char *response
     // Send message
     if (send(context->socket, message, (int)strlen(message), 0) < 0)
     {
-        comm_log(context, "Failed to send message");
+        int error = WSAGetLastError();
+        if (error == WSAETIMEDOUT)
+        {
+            comm_log(context, "Send operation timed out");
+            context->last_error = COMM_ERROR_TIMEOUT;
+        }
+        else
+        {
+            comm_log(context, "Failed to send message (error code: %d)", error);
+            context->last_error = COMM_ERROR_SEND_FAILED;
+        }
         return false;
     }
 
@@ -283,12 +299,23 @@ bool comm_send_receive(CommContext *context, const char *message, char *response
     int bytes_received = recv(context->socket, response, response_size - 1, 0);
     if (bytes_received <= 0)
     {
-        comm_log(context, "Failed to receive response");
+        int error = WSAGetLastError();
+        if (error == WSAETIMEDOUT)
+        {
+            comm_log(context, "Receive operation timed out");
+            context->last_error = COMM_ERROR_TIMEOUT;
+        }
+        else
+        {
+            comm_log(context, "Failed to receive response (error code: %d)", error);
+            context->last_error = COMM_ERROR_RECEIVE_FAILED;
+        }
         return false;
     }
 
     response[bytes_received] = '\0';
     comm_log(context, "Received response: %s", response);
+    context->last_error = COMM_ERROR_NONE;
     return true;
 }
 
@@ -325,4 +352,20 @@ void comm_cleanup(CommContext *context)
 
     context->initialized = false;
     comm_log(context, "Communication layer cleaned up");
+}
+
+/**
+ * @brief Get the last error code
+ *
+ * @param context Communication context
+ * @return int Error code (COMM_ERROR_*)
+ */
+int comm_get_last_error(CommContext *context)
+{
+    if (!context)
+    {
+        return COMM_ERROR_INVALID_PARAMETER;
+    }
+
+    return context->last_error;
 }

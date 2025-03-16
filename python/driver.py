@@ -9,6 +9,7 @@ from ctypes import (
     c_bool,
     c_char_p,
     c_uint8,
+    c_uint32,
     c_int,
     CFUNCTYPE,
     Structure,
@@ -117,7 +118,7 @@ class DriverDLL:
         self.dll.driver_get_last_error_message.argtypes = [c_void_p, c_char_p, c_int]
         self.dll.driver_get_last_error_message.restype = c_bool
 
-        self.dll.driver_set_timeout.argtypes = [c_void_p, c_uint8, POINTER(c_int)]
+        self.dll.driver_set_timeout.argtypes = [c_void_p, c_uint32, POINTER(c_int)]
         self.dll.driver_set_timeout.restype = c_bool
 
         self.dll.driver_connect.argtypes = [c_void_p, c_char_p, c_int, POINTER(c_int)]
@@ -526,6 +527,21 @@ class DriverDLL:
             return False
         return self.dll.driver_reset_component(
             self._handle, component_type, ctypes.byref(self._error_code)
+        )
+
+    def set_timeout(self, timeout_ms):
+        """Set the operation timeout.
+
+        Args:
+            timeout_ms: Timeout in milliseconds
+
+        Returns:
+            bool: True if successful
+        """
+        if self._handle is None:
+            return False
+        return self.dll.driver_set_timeout(
+            self._handle, timeout_ms, ctypes.byref(self._error_code)
         )
 
     def send_command(self, command, response_buffer):

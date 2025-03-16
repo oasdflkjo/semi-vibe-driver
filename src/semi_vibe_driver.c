@@ -18,9 +18,11 @@
 #define ERROR_MESSAGE_SIZE 256
 #define DEFAULT_TIMEOUT_MS 5000
 
+// Map error codes to their corresponding values in the header file
 #define DRIVER_ERROR_COMMUNICATION DRIVER_ERROR_COMMUNICATION_FAILED
 #define DRIVER_ERROR_PROTOCOL DRIVER_ERROR_PROTOCOL_ERROR
 #define DRIVER_ERROR_VERIFICATION DRIVER_ERROR_DEVICE_ERROR
+#define DRIVER_ERROR_TIMEOUT 9 // Value from semi_vibe_driver.h
 
 // Driver state structure (internal implementation of the opaque handle)
 struct DriverHandle
@@ -220,7 +222,11 @@ EXPORT bool driver_get_last_error_message(DriverHandle handle, char *buffer, siz
     EnterCriticalSection(&driver->lock);
 
     // Copy error message
+#ifdef _MSC_VER
+    strncpy_s(buffer, buffer_size, driver->last_error_message, buffer_size - 1);
+#else
     strncpy(buffer, driver->last_error_message, buffer_size - 1);
+#endif
     buffer[buffer_size - 1] = '\0';
 
     // Release lock
@@ -1093,7 +1099,15 @@ static bool send_and_receive(struct DriverHandle *handle, const SemiVibeMessage 
     // Send command and receive response
     if (!comm_send_receive(&handle->comm_context, command, response_str, BUFFER_SIZE))
     {
-        set_last_error(handle, DRIVER_ERROR_COMMUNICATION, "Failed to send/receive command");
+        // Check if it was a timeout
+        if (comm_get_last_error(&handle->comm_context) == COMM_ERROR_TIMEOUT)
+        {
+            set_last_error(handle, DRIVER_ERROR_TIMEOUT, "Communication timeout during operation");
+        }
+        else
+        {
+            set_last_error(handle, DRIVER_ERROR_COMMUNICATION, "Failed to send/receive command");
+        }
         return false;
     }
 
@@ -1148,7 +1162,15 @@ static bool read_register(struct DriverHandle *handle, uint8_t base, uint8_t off
     char response[BUFFER_SIZE];
     if (!comm_send_receive(&handle->comm_context, command, response, BUFFER_SIZE))
     {
-        set_last_error(handle, DRIVER_ERROR_COMMUNICATION, "Failed to communicate with device");
+        // Check if it was a timeout
+        if (comm_get_last_error(&handle->comm_context) == COMM_ERROR_TIMEOUT)
+        {
+            set_last_error(handle, DRIVER_ERROR_TIMEOUT, "Communication timeout during read operation");
+        }
+        else
+        {
+            set_last_error(handle, DRIVER_ERROR_COMMUNICATION, "Failed to communicate with device");
+        }
         return false;
     }
 
@@ -1199,7 +1221,15 @@ static bool write_register(struct DriverHandle *handle, uint8_t base, uint8_t of
     char response[BUFFER_SIZE];
     if (!comm_send_receive(&handle->comm_context, command, response, BUFFER_SIZE))
     {
-        set_last_error(handle, DRIVER_ERROR_COMMUNICATION, "Failed to communicate with device");
+        // Check if it was a timeout
+        if (comm_get_last_error(&handle->comm_context) == COMM_ERROR_TIMEOUT)
+        {
+            set_last_error(handle, DRIVER_ERROR_TIMEOUT, "Communication timeout during write operation");
+        }
+        else
+        {
+            set_last_error(handle, DRIVER_ERROR_COMMUNICATION, "Failed to communicate with device");
+        }
         return false;
     }
 
