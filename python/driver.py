@@ -136,6 +136,32 @@ class DriverDLL:
         self.dll.driver_send_command.argtypes = [c_char_p, c_char_p]
         self.dll.driver_send_command.restype = c_bool
 
+    def set_log_callback(self, log_callback):
+        """Set the log callback function.
+
+        This is used by the test utilities to set the callback before initialization.
+
+        Args:
+            log_callback: Callback function for logging
+
+        Returns:
+            bool: True if successful
+        """
+        self._callback = LOGCALLBACK(log_callback)
+        return True
+
+    def initialize(self):
+        """Initialize the driver using the previously set callback.
+
+        This is used by the test utilities for consistency.
+
+        Returns:
+            bool: True if successful
+        """
+        if self._callback is None:
+            return False
+        return self.dll.driver_init(self._callback)
+
     def init(self, log_callback):
         """Initialize the driver.
 

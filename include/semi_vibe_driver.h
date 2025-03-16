@@ -41,27 +41,30 @@ extern "C" {
 typedef void (*LogCallback)(const char *message);
 
 // Device sensor data structure
-typedef struct {
-  uint8_t temperature_id;
-  uint8_t temperature_value;
-  uint8_t humidity_id;
-  uint8_t humidity_value;
+typedef struct
+{
+    uint8_t temperature_id;
+    uint8_t temperature_value;
+    uint8_t humidity_id;
+    uint8_t humidity_value;
 } SensorData;
 
 // Device actuator data structure
-typedef struct {
-  uint8_t led_value;
-  uint8_t fan_value;
-  uint8_t heater_value;
-  uint8_t doors_value;
+typedef struct
+{
+    uint8_t led_value;
+    uint8_t fan_value;
+    uint8_t heater_value;
+    uint8_t doors_value;
 } ActuatorData;
 
 // Device status structure
-typedef struct {
-  bool connected;
-  bool sensors_powered;
-  bool actuators_powered;
-  bool has_errors;
+typedef struct
+{
+    bool connected;
+    bool sensors_powered;
+    bool actuators_powered;
+    bool has_errors;
 } DeviceStatus;
 
 /**

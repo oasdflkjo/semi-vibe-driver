@@ -13,6 +13,16 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 # Add include directories
 include_directories(include)
 
+# Define common source files
+set(COMMON_SOURCES
+    src/semi_vibe_protocol.c
+)
+
+# Define common header files
+set(COMMON_HEADERS
+    include/semi_vibe_protocol.h
+)
+
 # Define device source files
 set(DEVICE_SOURCES
     src/semi_vibe_device.c
@@ -26,15 +36,17 @@ set(DEVICE_HEADERS
 # Define driver source files
 set(DRIVER_SOURCES
     src/semi_vibe_driver.c
+    src/semi_vibe_comm.c
 )
 
 # Define driver header files
 set(DRIVER_HEADERS
     include/semi_vibe_driver.h
+    include/semi_vibe_comm.h
 )
 
 # Create device shared library
-add_library(semi_vibe_device SHARED ${DEVICE_SOURCES} ${DEVICE_HEADERS})
+add_library(semi_vibe_device SHARED ${DEVICE_SOURCES} ${DEVICE_HEADERS} ${COMMON_SOURCES} ${COMMON_HEADERS})
 
 # Set device library properties
 set_target_properties(semi_vibe_device PROPERTIES
@@ -46,7 +58,7 @@ set_target_properties(semi_vibe_device PROPERTIES
 target_link_libraries(semi_vibe_device ws2_32)
 
 # Create driver shared library
-add_library(semi_vibe_driver SHARED ${DRIVER_SOURCES} ${DRIVER_HEADERS})
+add_library(semi_vibe_driver SHARED ${DRIVER_SOURCES} ${DRIVER_HEADERS} ${COMMON_SOURCES} ${COMMON_HEADERS})
 
 # Set driver library properties
 set_target_properties(semi_vibe_driver PROPERTIES

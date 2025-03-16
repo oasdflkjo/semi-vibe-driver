@@ -77,17 +77,38 @@ class DeviceDLL:
         self.dll.device_process_command.argtypes = [c_char_p, c_char_p]
         self.dll.device_process_command.restype = c_bool
 
-    def init(self, log_callback):
-        """Initialize the device.
+    def set_log_callback(self, log_callback):
+        """Set the log callback function.
+
+        This is used by the test utilities to set the callback before initialization.
 
         Args:
             log_callback: Callback function for logging
+        """
+        self._callback = LOGCALLBACK(log_callback)
+        return True
+
+    def initialize(self):
+        """Initialize the device using the previously set callback.
+
+        This is used by the test utilities for consistency with the driver interface.
 
         Returns:
             bool: True if successful
         """
-        self._callback = LOGCALLBACK(log_callback)
+        if self._callback is None:
+            return False
         return self.dll.device_init(self._callback)
+
+    def start_server(self):
+        """Start the device server.
+
+        This is used by the test utilities for consistency with the driver interface.
+
+        Returns:
+            bool: True if successful
+        """
+        return self.dll.device_start()
 
     def start(self):
         """Start the device server.
@@ -96,6 +117,16 @@ class DeviceDLL:
             bool: True if successful
         """
         return self.dll.device_start()
+
+    def stop_server(self):
+        """Stop the device server.
+
+        This is used by the test utilities for consistency with the driver interface.
+
+        Returns:
+            bool: True if successful
+        """
+        return self.dll.device_stop()
 
     def stop(self):
         """Stop the device server.
@@ -139,3 +170,15 @@ class DeviceDLL:
         """
         command_bytes = command.encode("utf-8")
         return self.dll.device_process_command(command_bytes, response_buffer)
+
+    def init(self, log_callback):
+        """Initialize the device.
+
+        Args:
+            log_callback: Callback function for logging
+
+        Returns:
+            bool: True if successful
+        """
+        self._callback = LOGCALLBACK(log_callback)
+        return self.dll.device_init(self._callback)

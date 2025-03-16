@@ -1,5 +1,19 @@
 BasedOnStyle: LLVM
 ColumnLimit: 140
-IndentWidth: 2
-TabWidth: 2
-UseTab: Never
+BreakBeforeBraces: Custom
+BraceWrapping:
+  AfterExternBlock: false
+  AfterFunction: true
+  AfterControlStatement: Always
+  AfterStruct: true
+  AfterClass: true
+  AfterEnum: true
+  BeforeElse: true
+  BeforeCatch: true
+  BeforeLambdaBody: true
+AllowShortFunctionsOnASingleLine: false
+AllowShortBlocksOnASingleLine: Never
+AllowShortCaseLabelsOnASingleLine: false
+AlignAfterOpenBracket: DontAlign
+IndentWidth: 4
+SortIncludes: false

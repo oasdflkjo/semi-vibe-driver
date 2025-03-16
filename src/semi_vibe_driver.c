@@ -4,6 +4,7 @@
  */
 
 #include "../include/semi_vibe_driver.h"
+#include "../include/semi_vibe_comm.h"
 #include "../include/semi_vibe_protocol.h"
 
 #include <stdarg.h>
@@ -11,80 +12,37 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include <winsock2.h>
-#include <ws2tcpip.h>
-#pragma comment(lib, "ws2_32.lib")
-typedef SOCKET socket_t;
-#define SOCKET_ERROR_VALUE INVALID_SOCKET
-#define close_socket closesocket
-
 #define BUFFER_SIZE 256
-#define DEFAULT_PORT 8989
-#define DEFAULT_HOST "localhost"
 #define COMMAND_SIZE 7 // 6 hex digits + null terminator
 
-// Protocol constants
-#define BASE_MAIN 0x1
-#define BASE_SENSOR 0x2
-#define BASE_ACTUATOR 0x3
-#define BASE_CONTROL 0x4
-
-#define OFFSET_CONNECTED_DEVICE 0x00
-#define OFFSET_POWER_STATE 0x02
-#define OFFSET_ERROR_STATE 0x03
-
-#define OFFSET_TEMP_ID 0x10
-#define OFFSET_TEMP_VALUE 0x11
-#define OFFSET_HUMID_ID 0x20
-#define OFFSET_HUMID_VALUE 0x21
-
-#define OFFSET_LED 0x10
-#define OFFSET_FAN 0x20
-#define OFFSET_HEATER 0x30
-#define OFFSET_DOORS 0x40
-
-#define OFFSET_POWER_SENSORS 0xFB
-#define OFFSET_POWER_ACTUATORS 0xFC
-#define OFFSET_RESET_SENSORS 0xFD
-#define OFFSET_RESET_ACTUATORS 0xFE
-
-#define CMD_READ 0x0
-#define CMD_WRITE 0x1
-
-// Bit masks
-#define MASK_TEMP_SENSOR 0x01
-#define MASK_HUMID_SENSOR 0x10
-#define MASK_LED 0x01
-#define MASK_FAN 0x04
-#define MASK_HEATER 0x10
-#define MASK_DOORS 0x40
-#define MASK_HEATER_VALUE 0x0F
-#define MASK_DOORS_VALUE 0x55
-
-// Bit positions for better readability
-#define BIT_TEMP_SENSOR 0
-#define BIT_HUMID_SENSOR 4
-#define BIT_LED 0
-#define BIT_FAN 2
-#define BIT_HEATER 4
-#define BIT_DOORS 6
-
 // Driver state
-typedef struct {
-  LogCallback log_callback;
-  socket_t socket;
-  bool initialized;
-  bool connected;
+typedef struct
+{
+    LogCallback log_callback;
+    CommContext comm_context;
+    bool initialized;
 } DriverState;
 
 // Global driver state
-static DriverState g_driver = {.log_callback = NULL, .socket = SOCKET_ERROR_VALUE, .initialized = false, .connected = false};
+static DriverState g_driver = {.log_callback = NULL, .initialized = false};
 
 // Forward declarations
-static void log_message(const char *format, ...);
-static bool send_and_receive(const SemiVibeMessage *request, SemiVibeMessage *response);
+static void driver_log_callback(const char *message);
 static bool read_register(uint8_t base, uint8_t offset, uint8_t *value);
 static bool write_register(uint8_t base, uint8_t offset, uint8_t value);
+
+/**
+ * @brief Callback function for communication layer logging
+ *
+ * @param message Log message
+ */
+static void driver_log_callback(const char *message)
+{
+    if (g_driver.log_callback)
+    {
+        g_driver.log_callback(message);
+    }
+}
 
 /**
  * @brief Initialize the driver
@@ -92,24 +50,35 @@ static bool write_register(uint8_t base, uint8_t offset, uint8_t value);
  * @param log_callback Optional callback for logging
  * @return true if initialization was successful
  */
-EXPORT bool driver_init(LogCallback log_callback) {
-  if (g_driver.initialized) {
-    log_message("Driver is already initialized");
+EXPORT bool driver_init(LogCallback log_callback)
+{
+    if (g_driver.initialized)
+    {
+        if (g_driver.log_callback)
+        {
+            g_driver.log_callback("Driver is already initialized");
+        }
+        return true;
+    }
+
+    g_driver.log_callback = log_callback;
+
+    // Initialize communication layer
+    if (!comm_init(&g_driver.comm_context, driver_log_callback))
+    {
+        if (g_driver.log_callback)
+        {
+            g_driver.log_callback("Failed to initialize communication layer");
+        }
+        return false;
+    }
+
+    g_driver.initialized = true;
+    if (g_driver.log_callback)
+    {
+        g_driver.log_callback("Semi-Vibe-Driver initialized");
+    }
     return true;
-  }
-
-  g_driver.log_callback = log_callback;
-
-  // Initialize Winsock
-  WSADATA wsaData;
-  if (WSAStartup(MAKEWORD(2, 2), &wsaData) != 0) {
-    log_message("WSAStartup failed");
-    return false;
-  }
-
-  g_driver.initialized = true;
-  log_message("Semi-Vibe-Driver initialized");
-  return true;
 }
 
 /**
@@ -119,78 +88,28 @@ EXPORT bool driver_init(LogCallback log_callback) {
  * @param port Port number (defaults to 8989)
  * @return true if connection was successful
  */
-EXPORT bool driver_connect(const char *host, int port) {
-  if (!g_driver.initialized) {
-    log_message("Driver is not initialized");
-    return false;
-  }
+EXPORT bool driver_connect(const char *host, int port)
+{
+    if (!g_driver.initialized)
+    {
+        if (g_driver.log_callback)
+        {
+            g_driver.log_callback("Driver is not initialized");
+        }
+        return false;
+    }
 
-  if (g_driver.connected) {
-    log_message("Driver is already connected");
-    return true;
-  }
+    if (g_driver.comm_context.connected)
+    {
+        if (g_driver.log_callback)
+        {
+            g_driver.log_callback("Driver is already connected");
+        }
+        return true;
+    }
 
-  // Use default values if not provided
-  if (host == NULL) {
-    host = DEFAULT_HOST;
-  }
-  if (port <= 0) {
-    port = DEFAULT_PORT;
-  }
-
-  // Create socket
-  g_driver.socket = socket(AF_INET, SOCK_STREAM, 0);
-  if (g_driver.socket == SOCKET_ERROR_VALUE) {
-    log_message("Failed to create socket");
-    return false;
-  }
-
-  // Connect to server
-  struct sockaddr_in server_addr;
-  server_addr.sin_family = AF_INET;
-  server_addr.sin_port = htons(port);
-
-  // Convert hostname to IP address
-  struct hostent *he;
-  if ((he = gethostbyname(host)) == NULL) {
-    log_message("Failed to resolve hostname");
-    close_socket(g_driver.socket);
-    g_driver.socket = SOCKET_ERROR_VALUE;
-    return false;
-  }
-
-  // Copy the IP address
-  memcpy(&server_addr.sin_addr, he->h_addr_list[0], he->h_length);
-
-  if (connect(g_driver.socket, (struct sockaddr *)&server_addr, sizeof(server_addr)) < 0) {
-    log_message("Connection failed");
-    close_socket(g_driver.socket);
-    g_driver.socket = SOCKET_ERROR_VALUE;
-    return false;
-  }
-
-  // Wait for ACK message
-  char buffer[BUFFER_SIZE];
-  memset(buffer, 0, BUFFER_SIZE);
-  int bytes_received = recv(g_driver.socket, buffer, BUFFER_SIZE - 1, 0);
-  if (bytes_received <= 0) {
-    log_message("Failed to receive ACK message");
-    close_socket(g_driver.socket);
-    g_driver.socket = SOCKET_ERROR_VALUE;
-    return false;
-  }
-
-  buffer[bytes_received] = '\0';
-  if (strcmp(buffer, "ACK") != 0) {
-    log_message("Invalid ACK message: %s", buffer);
-    close_socket(g_driver.socket);
-    g_driver.socket = SOCKET_ERROR_VALUE;
-    return false;
-  }
-
-  g_driver.connected = true;
-  log_message("Connected to device at %s:%d", host, port);
-  return true;
+    // Connect to device
+    return comm_connect(&g_driver.comm_context, host, port);
 }
 
 /**
@@ -198,23 +117,19 @@ EXPORT bool driver_connect(const char *host, int port) {
  *
  * @return true if disconnection was successful
  */
-EXPORT bool driver_disconnect() {
-  if (!g_driver.connected) {
-    log_message("Driver is not connected");
-    return true;
-  }
+EXPORT bool driver_disconnect()
+{
+    if (!g_driver.comm_context.connected)
+    {
+        if (g_driver.log_callback)
+        {
+            g_driver.log_callback("Driver is not connected");
+        }
+        return true;
+    }
 
-  // Send exit command
-  const char *exit_command = "exit";
-  send(g_driver.socket, exit_command, (int)strlen(exit_command), 0);
-
-  // Close socket
-  close_socket(g_driver.socket);
-  g_driver.socket = SOCKET_ERROR_VALUE;
-  g_driver.connected = false;
-
-  log_message("Disconnected from device");
-  return true;
+    // Disconnect from device
+    return comm_disconnect(&g_driver.comm_context, true);
 }
 
 /**
@@ -223,28 +138,31 @@ EXPORT bool driver_disconnect() {
  * @param status Pointer to DeviceStatus structure to be filled
  * @return true if status was retrieved successfully
  */
-EXPORT bool driver_get_status(DeviceStatus *status) {
-  if (!g_driver.connected || !status) {
-    return false;
-  }
+EXPORT bool driver_get_status(DeviceStatus *status)
+{
+    if (!g_driver.comm_context.connected || !status)
+    {
+        return false;
+    }
 
-  uint8_t connected_device = 0;
-  uint8_t power_state = 0;
-  uint8_t error_state = 0;
+    uint8_t connected_device = 0;
+    uint8_t power_state = 0;
+    uint8_t error_state = 0;
 
-  // Read status registers
-  if (!read_register(BASE_MAIN, OFFSET_CONNECTED_DEVICE, &connected_device) ||
-      !read_register(BASE_MAIN, OFFSET_POWER_STATE, &power_state) || !read_register(BASE_MAIN, OFFSET_ERROR_STATE, &error_state)) {
-    return false;
-  }
+    // Read status registers
+    if (!read_register(BASE_MAIN, OFFSET_CONNECTED_DEVICE, &connected_device) ||
+        !read_register(BASE_MAIN, OFFSET_POWER_STATE, &power_state) || !read_register(BASE_MAIN, OFFSET_ERROR_STATE, &error_state))
+    {
+        return false;
+    }
 
-  // Fill status structure
-  status->connected = (connected_device != 0);
-  status->sensors_powered = ((power_state & (MASK_TEMP_SENSOR | MASK_HUMID_SENSOR)) != 0);
-  status->actuators_powered = ((power_state & (MASK_LED | MASK_FAN | MASK_HEATER | MASK_DOORS)) != 0);
-  status->has_errors = (error_state != 0);
+    // Fill status structure
+    status->connected = (connected_device != 0);
+    status->sensors_powered = ((power_state & (MASK_TEMP_SENSOR | MASK_HUMID_SENSOR)) != 0);
+    status->actuators_powered = ((power_state & (MASK_LED | MASK_FAN | MASK_HEATER | MASK_DOORS)) != 0);
+    status->has_errors = (error_state != 0);
 
-  return true;
+    return true;
 }
 
 /**
@@ -253,12 +171,14 @@ EXPORT bool driver_get_status(DeviceStatus *status) {
  * @param value Pointer to store the humidity value (0-100)
  * @return true if value was retrieved successfully
  */
-EXPORT bool driver_get_humidity(uint8_t *value) {
-  if (!g_driver.connected || !value) {
-    return false;
-  }
+EXPORT bool driver_get_humidity(uint8_t *value)
+{
+    if (!g_driver.comm_context.connected || !value)
+    {
+        return false;
+    }
 
-  return read_register(BASE_SENSOR, OFFSET_HUMID_VALUE, value);
+    return read_register(BASE_SENSOR, OFFSET_HUMID_VALUE, value);
 }
 
 /**
@@ -267,12 +187,14 @@ EXPORT bool driver_get_humidity(uint8_t *value) {
  * @param value Pointer to store the temperature value (0-255)
  * @return true if value was retrieved successfully
  */
-EXPORT bool driver_get_temperature(uint8_t *value) {
-  if (!g_driver.connected || !value) {
-    return false;
-  }
+EXPORT bool driver_get_temperature(uint8_t *value)
+{
+    if (!g_driver.comm_context.connected || !value)
+    {
+        return false;
+    }
 
-  return read_register(BASE_SENSOR, OFFSET_TEMP_VALUE, value);
+    return read_register(BASE_SENSOR, OFFSET_TEMP_VALUE, value);
 }
 
 /**
@@ -281,7 +203,10 @@ EXPORT bool driver_get_temperature(uint8_t *value) {
  * @param value LED brightness (0-255)
  * @return true if value was set successfully
  */
-EXPORT bool driver_set_led(uint8_t value) { return write_register(BASE_ACTUATOR, OFFSET_LED, value); }
+EXPORT bool driver_set_led(uint8_t value)
+{
+    return write_register(BASE_ACTUATOR, OFFSET_LED, value);
+}
 
 /**
  * @brief Get LED value
@@ -289,12 +214,14 @@ EXPORT bool driver_set_led(uint8_t value) { return write_register(BASE_ACTUATOR,
  * @param value Pointer to store the LED brightness (0-255)
  * @return true if value was retrieved successfully
  */
-EXPORT bool driver_get_led(uint8_t *value) {
-  if (!g_driver.connected || !value) {
-    return false;
-  }
+EXPORT bool driver_get_led(uint8_t *value)
+{
+    if (!g_driver.comm_context.connected || !value)
+    {
+        return false;
+    }
 
-  return read_register(BASE_ACTUATOR, OFFSET_LED, value);
+    return read_register(BASE_ACTUATOR, OFFSET_LED, value);
 }
 
 /**
@@ -303,7 +230,10 @@ EXPORT bool driver_get_led(uint8_t *value) {
  * @param value Fan speed (0-255)
  * @return true if value was set successfully
  */
-EXPORT bool driver_set_fan(uint8_t value) { return write_register(BASE_ACTUATOR, OFFSET_FAN, value); }
+EXPORT bool driver_set_fan(uint8_t value)
+{
+    return write_register(BASE_ACTUATOR, OFFSET_FAN, value);
+}
 
 /**
  * @brief Get fan value
@@ -311,12 +241,14 @@ EXPORT bool driver_set_fan(uint8_t value) { return write_register(BASE_ACTUATOR,
  * @param value Pointer to store the fan speed (0-255)
  * @return true if value was retrieved successfully
  */
-EXPORT bool driver_get_fan(uint8_t *value) {
-  if (!g_driver.connected || !value) {
-    return false;
-  }
+EXPORT bool driver_get_fan(uint8_t *value)
+{
+    if (!g_driver.comm_context.connected || !value)
+    {
+        return false;
+    }
 
-  return read_register(BASE_ACTUATOR, OFFSET_FAN, value);
+    return read_register(BASE_ACTUATOR, OFFSET_FAN, value);
 }
 
 /**
@@ -325,9 +257,10 @@ EXPORT bool driver_get_fan(uint8_t *value) {
  * @param value Heater level (0-15, only lower 4 bits used)
  * @return true if value was set successfully
  */
-EXPORT bool driver_set_heater(uint8_t value) {
-  // Heater only uses lower 4 bits
-  return write_register(BASE_ACTUATOR, OFFSET_HEATER, value & MASK_HEATER_VALUE);
+EXPORT bool driver_set_heater(uint8_t value)
+{
+    // Heater only uses lower 4 bits
+    return write_register(BASE_ACTUATOR, OFFSET_HEATER, value & MASK_HEATER_VALUE);
 }
 
 /**
@@ -336,19 +269,22 @@ EXPORT bool driver_set_heater(uint8_t value) {
  * @param value Pointer to store the heater level (0-15)
  * @return true if value was retrieved successfully
  */
-EXPORT bool driver_get_heater(uint8_t *value) {
-  if (!g_driver.connected || !value) {
-    return false;
-  }
+EXPORT bool driver_get_heater(uint8_t *value)
+{
+    if (!g_driver.comm_context.connected || !value)
+    {
+        return false;
+    }
 
-  uint8_t raw_value;
-  if (!read_register(BASE_ACTUATOR, OFFSET_HEATER, &raw_value)) {
-    return false;
-  }
+    uint8_t raw_value;
+    if (!read_register(BASE_ACTUATOR, OFFSET_HEATER, &raw_value))
+    {
+        return false;
+    }
 
-  // Ensure only the lower 4 bits are returned (0-15)
-  *value = raw_value & MASK_HEATER_VALUE;
-  return true;
+    // Ensure only the lower 4 bits are returned (0-15)
+    *value = raw_value & MASK_HEATER_VALUE;
+    return true;
 }
 
 /**
@@ -358,47 +294,53 @@ EXPORT bool driver_get_heater(uint8_t *value) {
  * @param state Door state (DOOR_OPEN or DOOR_CLOSED)
  * @return true if successful, false otherwise
  */
-EXPORT bool driver_set_door(int door_id, int state) {
-  if (!g_driver.connected || door_id < DOOR_1 || door_id > DOOR_4 || (state != DOOR_OPEN && state != DOOR_CLOSED)) {
-    return false;
-  }
+EXPORT bool driver_set_door(int door_id, int state)
+{
+    if (!g_driver.comm_context.connected || door_id < DOOR_1 || door_id > DOOR_4 || (state != DOOR_OPEN && state != DOOR_CLOSED))
+    {
+        return false;
+    }
 
-  /* IMPORTANT: This function intentionally uses a read-modify-write approach for functional safety.
-   *
-   * 1. We first read the current door register value to ensure we have the most up-to-date state.
-   *    This is critical for functional safety elements like doors where multiple clients might
-   *    control the same device simultaneously.
-   *
-   * 2. We then modify only the specific door bit while preserving the state of other doors.
-   *
-   * 3. Finally, we write the new value back to the register.
-   *
-   * While this approach generates more messages (2 per door operation), it ensures:
-   * - We always operate on the current state of the hardware
-   * - We don't inadvertently change the state of other doors
-   * - We avoid race conditions and synchronization issues that could occur with cached values
-   *
-   * For functional safety elements like doors, this additional communication overhead
-   * is an acceptable trade-off for increased reliability and safety.
-   */
-  uint8_t current_value;
-  if (!read_register(BASE_ACTUATOR, OFFSET_DOORS, &current_value)) {
-    return false;
-  }
+    /* IMPORTANT: This function intentionally uses a read-modify-write approach for functional safety.
+     *
+     * 1. We first read the current door register value to ensure we have the most up-to-date state.
+     *    This is critical for functional safety elements like doors where multiple clients might
+     *    control the same device simultaneously.
+     *
+     * 2. We then modify only the specific door bit while preserving the state of other doors.
+     *
+     * 3. Finally, we write the new value back to the register.
+     *
+     * While this approach generates more messages (2 per door operation), it ensures:
+     * - We always operate on the current state of the hardware
+     * - We don't inadvertently change the state of other doors
+     * - We avoid race conditions and synchronization issues that could occur with cached values
+     *
+     * For functional safety elements like doors, this additional communication overhead
+     * is an acceptable trade-off for increased reliability and safety.
+     */
+    uint8_t current_value;
+    if (!read_register(BASE_ACTUATOR, OFFSET_DOORS, &current_value))
+    {
+        return false;
+    }
 
-  // Calculate bit position (DOOR_1->0, DOOR_2->2, DOOR_3->4, DOOR_4->6)
-  int bit_position = (door_id - 1) * 2;
+    // Calculate bit position (DOOR_1->0, DOOR_2->2, DOOR_3->4, DOOR_4->6)
+    int bit_position = (door_id - 1) * 2;
 
-  // Set or clear the bit based on state
-  uint8_t new_value;
-  if (state == DOOR_OPEN) {
-    new_value = current_value | (1 << bit_position); // Set bit
-  } else {
-    new_value = current_value & ~(1 << bit_position); // Clear bit
-  }
+    // Set or clear the bit based on state
+    uint8_t new_value;
+    if (state == DOOR_OPEN)
+    {
+        new_value = current_value | (1 << bit_position); // Set bit
+    }
+    else
+    {
+        new_value = current_value & ~(1 << bit_position); // Clear bit
+    }
 
-  // Write the new value (ensuring only valid bits are set)
-  return write_register(BASE_ACTUATOR, OFFSET_DOORS, new_value & MASK_DOORS_VALUE);
+    // Write the new value (ensuring only valid bits are set)
+    return write_register(BASE_ACTUATOR, OFFSET_DOORS, new_value & MASK_DOORS_VALUE);
 }
 
 /**
@@ -408,58 +350,37 @@ EXPORT bool driver_set_door(int door_id, int state) {
  * @param state Pointer to store the door state (DOOR_OPEN or DOOR_CLOSED)
  * @return true if successful, false otherwise
  */
-EXPORT bool driver_get_door_state(int door_id, int *state) {
-  if (!g_driver.connected || door_id < DOOR_1 || door_id > DOOR_4 || state == NULL) {
-    return false;
-  }
-
-  /* IMPORTANT: This function always reads the current door state directly from the hardware.
-   *
-   * For functional safety elements like doors, it's critical to always have the most up-to-date
-   * state from the hardware rather than relying on cached values. This ensures:
-   * - We always report the actual state of the hardware
-   * - We detect any changes made by other clients or external factors
-   * - We avoid potential safety issues that could arise from stale or incorrect state information
-   *
-   * While this generates an additional message for each door state query, the safety
-   * benefits outweigh the communication overhead.
-   */
-  uint8_t current_value;
-  if (!read_register(BASE_ACTUATOR, OFFSET_DOORS, &current_value)) {
-    return false;
-  }
-
-  // Calculate bit position (DOOR_1->0, DOOR_2->2, DOOR_3->4, DOOR_4->6)
-  int bit_position = (door_id - 1) * 2;
-
-  // Check if the bit is set
-  *state = (current_value & (1 << bit_position)) ? DOOR_OPEN : DOOR_CLOSED;
-
-  return true;
-}
-
-/**
- * @brief Helper function to create a bitmask from boolean values
- *
- * @param count Number of boolean parameters
- * @param ... Boolean values and their corresponding bit positions
- * @return uint8_t Resulting bitmask
- */
-static uint8_t create_bitmask(int count, ...) {
-  va_list args;
-  uint8_t mask = 0;
-
-  va_start(args, count);
-  for (int i = 0; i < count; i++) {
-    bool value = va_arg(args, int); // bool is promoted to int in varargs
-    int bit_position = va_arg(args, int);
-    if (value) {
-      mask |= (1 << bit_position);
+EXPORT bool driver_get_door_state(int door_id, int *state)
+{
+    if (!g_driver.comm_context.connected || door_id < DOOR_1 || door_id > DOOR_4 || state == NULL)
+    {
+        return false;
     }
-  }
-  va_end(args);
 
-  return mask;
+    /* IMPORTANT: This function always reads the current door state directly from the hardware.
+     *
+     * For functional safety elements like doors, it's critical to always have the most up-to-date
+     * state from the hardware rather than relying on cached values. This ensures:
+     * - We always report the actual state of the hardware
+     * - We detect any changes made by other clients or external factors
+     * - We avoid potential safety issues that could arise from stale or incorrect state information
+     *
+     * While this generates an additional message for each door state query, the safety
+     * benefits outweigh the communication overhead.
+     */
+    uint8_t current_value;
+    if (!read_register(BASE_ACTUATOR, OFFSET_DOORS, &current_value))
+    {
+        return false;
+    }
+
+    // Calculate bit position (DOOR_1->0, DOOR_2->2, DOOR_3->4, DOOR_4->6)
+    int bit_position = (door_id - 1) * 2;
+
+    // Check if the bit is set
+    *state = (current_value & (1 << bit_position)) ? DOOR_OPEN : DOOR_CLOSED;
+
+    return true;
 }
 
 /**
@@ -469,52 +390,52 @@ static uint8_t create_bitmask(int count, ...) {
  * @param response Message structure for the response
  * @return true if command was sent and response received successfully
  */
-static bool send_and_receive(const SemiVibeMessage *request, SemiVibeMessage *response) {
-  if (!g_driver.connected || !request || !response) {
-    return false;
-  }
+static bool send_and_receive(const SemiVibeMessage *request, SemiVibeMessage *response)
+{
+    if (!g_driver.comm_context.connected || !request || !response)
+    {
+        return false;
+    }
 
-  char command[COMMAND_SIZE];
-  char response_str[BUFFER_SIZE];
+    char command[COMMAND_SIZE];
+    char response_str[BUFFER_SIZE];
 
-  // Format the request message
-  if (!format_message(request, command)) {
-    log_message("Failed to format command");
-    return false;
-  }
+    // Format the request message
+    if (!protocol_format_message(request, command))
+    {
+        if (g_driver.log_callback)
+        {
+            g_driver.log_callback("Failed to format command");
+        }
+        return false;
+    }
 
-  // Log the command being sent
-  log_message("Sending command: %s", command);
+    // Send command and receive response
+    if (!comm_send_receive(&g_driver.comm_context, command, response_str, BUFFER_SIZE))
+    {
+        return false;
+    }
 
-  // Send command
-  if (send(g_driver.socket, command, (int)strlen(command), 0) < 0) {
-    log_message("Failed to send command");
-    return false;
-  }
+    // Parse the response
+    if (!protocol_parse_message(response_str, response))
+    {
+        if (g_driver.log_callback)
+        {
+            g_driver.log_callback("Failed to parse response: %s");
+        }
+        return false;
+    }
 
-  // Receive response
-  memset(response_str, 0, BUFFER_SIZE);
-  int bytes_received = recv(g_driver.socket, response_str, BUFFER_SIZE - 1, 0);
-  if (bytes_received <= 0) {
-    log_message("Failed to receive response");
-    return false;
-  }
+    // Log error responses but don't treat them as failures
+    if (protocol_is_error(response))
+    {
+        if (g_driver.log_callback)
+        {
+            g_driver.log_callback("Error response");
+        }
+    }
 
-  response_str[bytes_received] = '\0';
-
-  // Parse the response
-  if (!parse_message(response_str, response)) {
-    log_message("Failed to parse response: %s", response_str);
-    return false;
-  }
-
-  // Log error responses but don't treat them as failures
-  if (response->error > 0) {
-    log_message("Error response: %s", response_str);
-  }
-
-  log_message("Received response: %s", response_str);
-  return true;
+    return true;
 }
 
 /**
@@ -525,30 +446,38 @@ static bool send_and_receive(const SemiVibeMessage *request, SemiVibeMessage *re
  * @param value Pointer to store the read value
  * @return true if register was read successfully
  */
-static bool read_register(uint8_t base, uint8_t offset, uint8_t *value) {
-  if (!g_driver.connected || !value) {
-    return false;
-  }
+static bool read_register(uint8_t base, uint8_t offset, uint8_t *value)
+{
+    if (!g_driver.comm_context.connected || !value)
+    {
+        return false;
+    }
 
-  // Create request message
-  SemiVibeMessage request = {.base = base, .offset = offset, .rw = CMD_READ, .data = 0, .error = 0};
+    // Create request message
+    SemiVibeMessage request;
+    if (!protocol_create_read_message(base, offset, &request))
+    {
+        return false;
+    }
 
-  // Create response message
-  SemiVibeMessage response = {0};
+    // Create response message
+    SemiVibeMessage response = {0};
 
-  // Send request and receive response
-  if (!send_and_receive(&request, &response)) {
-    return false;
-  }
+    // Send request and receive response
+    if (!send_and_receive(&request, &response))
+    {
+        return false;
+    }
 
-  // Check for errors
-  if (response.error > 0) {
-    return false;
-  }
+    // Check for errors
+    if (protocol_is_error(&response))
+    {
+        return false;
+    }
 
-  // Store the read value
-  *value = response.data;
-  return true;
+    // Store the read value
+    *value = response.data;
+    return true;
 }
 
 /**
@@ -559,29 +488,38 @@ static bool read_register(uint8_t base, uint8_t offset, uint8_t *value) {
  * @param value Value to write
  * @return true if register was written successfully
  */
-static bool write_register(uint8_t base, uint8_t offset, uint8_t value) {
-  if (!g_driver.connected) {
-    return false;
-  }
+static bool write_register(uint8_t base, uint8_t offset, uint8_t value)
+{
+    if (!g_driver.comm_context.connected)
+    {
+        return false;
+    }
 
-  // Create request message
-  SemiVibeMessage request = {.base = base, .offset = offset, .rw = CMD_WRITE, .data = value, .error = 0};
+    // Create request message
+    SemiVibeMessage request;
+    if (!protocol_create_write_message(base, offset, value, &request))
+    {
+        return false;
+    }
 
-  // Create response message
-  SemiVibeMessage response = {0};
+    // Create response message
+    SemiVibeMessage response = {0};
 
-  // Send request and receive response
-  if (!send_and_receive(&request, &response)) {
-    return false;
-  }
+    // Send request and receive response
+    if (!send_and_receive(&request, &response))
+    {
+        return false;
+    }
 
-  // Check for errors
-  if (response.error > 0) {
-    return false;
-  }
+    // Check for errors
+    if (protocol_is_error(&response))
+    {
+        return false;
+    }
 
-  // Check if response matches request (write operations echo back the command)
-  return (response.base == request.base && response.offset == request.offset && response.rw == request.rw && response.data == request.data);
+    // Check if response matches request (write operations echo back the command)
+    return (
+        response.base == request.base && response.offset == request.offset && response.rw == request.rw && response.data == request.data);
 }
 
 /**
@@ -591,44 +529,48 @@ static bool write_register(uint8_t base, uint8_t offset, uint8_t value) {
  * @param powered Pointer to store the power state (true=powered, false=not powered)
  * @return true if successful, false otherwise
  */
-EXPORT bool driver_get_power_state(int component_type, bool *powered) {
-  if (!g_driver.connected || !powered || component_type < COMPONENT_TEMPERATURE || component_type > COMPONENT_DOORS) {
-    return false;
-  }
+EXPORT bool driver_get_power_state(int component_type, bool *powered)
+{
+    if (!g_driver.comm_context.connected || !powered || component_type < COMPONENT_TEMPERATURE || component_type > COMPONENT_DOORS)
+    {
+        return false;
+    }
 
-  uint8_t power_state = 0;
-  if (!read_register(BASE_MAIN, OFFSET_POWER_STATE, &power_state)) {
-    return false;
-  }
+    uint8_t power_state = 0;
+    if (!read_register(BASE_MAIN, OFFSET_POWER_STATE, &power_state))
+    {
+        return false;
+    }
 
-  // Map component type to bit mask
-  uint8_t mask = 0;
-  switch (component_type) {
-  case COMPONENT_TEMPERATURE:
-    mask = MASK_TEMP_SENSOR;
-    break;
-  case COMPONENT_HUMIDITY:
-    mask = MASK_HUMID_SENSOR;
-    break;
-  case COMPONENT_LED:
-    mask = MASK_LED;
-    break;
-  case COMPONENT_FAN:
-    mask = MASK_FAN;
-    break;
-  case COMPONENT_HEATER:
-    mask = MASK_HEATER;
-    break;
-  case COMPONENT_DOORS:
-    mask = MASK_DOORS;
-    break;
-  default:
-    return false;
-  }
+    // Map component type to bit mask
+    uint8_t mask = 0;
+    switch (component_type)
+    {
+    case COMPONENT_TEMPERATURE:
+        mask = MASK_TEMP_SENSOR;
+        break;
+    case COMPONENT_HUMIDITY:
+        mask = MASK_HUMID_SENSOR;
+        break;
+    case COMPONENT_LED:
+        mask = MASK_LED;
+        break;
+    case COMPONENT_FAN:
+        mask = MASK_FAN;
+        break;
+    case COMPONENT_HEATER:
+        mask = MASK_HEATER;
+        break;
+    case COMPONENT_DOORS:
+        mask = MASK_DOORS;
+        break;
+    default:
+        return false;
+    }
 
-  // Check if the bit is set
-  *powered = (power_state & mask) != 0;
-  return true;
+    // Check if the bit is set
+    *powered = (power_state & mask) != 0;
+    return true;
 }
 
 /**
@@ -638,44 +580,48 @@ EXPORT bool driver_get_power_state(int component_type, bool *powered) {
  * @param has_error Pointer to store the error state (true=has error, false=no error)
  * @return true if successful, false otherwise
  */
-EXPORT bool driver_get_error_state(int component_type, bool *has_error) {
-  if (!g_driver.connected || !has_error || component_type < COMPONENT_TEMPERATURE || component_type > COMPONENT_DOORS) {
-    return false;
-  }
+EXPORT bool driver_get_error_state(int component_type, bool *has_error)
+{
+    if (!g_driver.comm_context.connected || !has_error || component_type < COMPONENT_TEMPERATURE || component_type > COMPONENT_DOORS)
+    {
+        return false;
+    }
 
-  uint8_t error_state = 0;
-  if (!read_register(BASE_MAIN, OFFSET_ERROR_STATE, &error_state)) {
-    return false;
-  }
+    uint8_t error_state = 0;
+    if (!read_register(BASE_MAIN, OFFSET_ERROR_STATE, &error_state))
+    {
+        return false;
+    }
 
-  // Map component type to bit mask
-  uint8_t mask = 0;
-  switch (component_type) {
-  case COMPONENT_TEMPERATURE:
-    mask = MASK_TEMP_SENSOR;
-    break;
-  case COMPONENT_HUMIDITY:
-    mask = MASK_HUMID_SENSOR;
-    break;
-  case COMPONENT_LED:
-    mask = MASK_LED;
-    break;
-  case COMPONENT_FAN:
-    mask = MASK_FAN;
-    break;
-  case COMPONENT_HEATER:
-    mask = MASK_HEATER;
-    break;
-  case COMPONENT_DOORS:
-    mask = MASK_DOORS;
-    break;
-  default:
-    return false;
-  }
+    // Map component type to bit mask
+    uint8_t mask = 0;
+    switch (component_type)
+    {
+    case COMPONENT_TEMPERATURE:
+        mask = MASK_TEMP_SENSOR;
+        break;
+    case COMPONENT_HUMIDITY:
+        mask = MASK_HUMID_SENSOR;
+        break;
+    case COMPONENT_LED:
+        mask = MASK_LED;
+        break;
+    case COMPONENT_FAN:
+        mask = MASK_FAN;
+        break;
+    case COMPONENT_HEATER:
+        mask = MASK_HEATER;
+        break;
+    case COMPONENT_DOORS:
+        mask = MASK_DOORS;
+        break;
+    default:
+        return false;
+    }
 
-  // Check if the bit is set
-  *has_error = (error_state & mask) != 0;
-  return true;
+    // Check if the bit is set
+    *has_error = (error_state & mask) != 0;
+    return true;
 }
 
 /**
@@ -685,51 +631,44 @@ EXPORT bool driver_get_error_state(int component_type, bool *has_error) {
  * @param response Buffer to store response
  * @return true if command was sent successfully
  */
-EXPORT bool driver_send_command(const char *command, char *response) {
-  if (!g_driver.connected || !command || !response) {
-    return false;
-  }
+EXPORT bool driver_send_command(const char *command, char *response)
+{
+    if (!g_driver.comm_context.connected || !command || !response)
+    {
+        return false;
+    }
 
-  // Parse the command
-  SemiVibeMessage request = {0};
-  if (!parse_message(command, &request)) {
-    log_message("Failed to parse command: %s", command);
-    return false;
-  }
+    // Parse the command
+    SemiVibeMessage request = {0};
+    if (!protocol_parse_message(command, &request))
+    {
+        if (g_driver.log_callback)
+        {
+            g_driver.log_callback("Failed to parse command");
+        }
+        return false;
+    }
 
-  // Create response message
-  SemiVibeMessage response_msg = {0};
+    // Create response message
+    SemiVibeMessage response_msg = {0};
 
-  // Send request and receive response
-  if (!send_and_receive(&request, &response_msg)) {
-    return false;
-  }
+    // Send request and receive response
+    if (!send_and_receive(&request, &response_msg))
+    {
+        return false;
+    }
 
-  // Format the response
-  if (!format_message(&response_msg, response)) {
-    log_message("Failed to format response");
-    return false;
-  }
+    // Format the response
+    if (!protocol_format_message(&response_msg, response))
+    {
+        if (g_driver.log_callback)
+        {
+            g_driver.log_callback("Failed to format response");
+        }
+        return false;
+    }
 
-  return true;
-}
-
-/**
- * @brief Log a message using the callback if set
- *
- * @param format Format string
- * @param ... Format arguments
- */
-static void log_message(const char *format, ...) {
-  if (g_driver.log_callback) {
-    char buffer[BUFFER_SIZE];
-    va_list args;
-    va_start(args, format);
-    vsnprintf(buffer, BUFFER_SIZE, format, args);
-    va_end(args);
-
-    g_driver.log_callback(buffer);
-  }
+    return true;
 }
 
 /**
@@ -739,68 +678,78 @@ static void log_message(const char *format, ...) {
  * @param powered Power state to set (true=powered, false=not powered)
  * @return true if successful, false otherwise
  */
-EXPORT bool driver_set_power_state(int component_type, bool powered) {
-  if (!g_driver.connected || component_type < COMPONENT_TEMPERATURE || component_type > COMPONENT_DOORS) {
-    return false;
-  }
-
-  // For sensors
-  if (component_type == COMPONENT_TEMPERATURE || component_type == COMPONENT_HUMIDITY) {
-    // Read current power state to preserve the other sensor's state
-    uint8_t current_power_state = 0;
-    if (!read_register(BASE_CONTROL, OFFSET_POWER_SENSORS, &current_power_state)) {
-      return false;
+EXPORT bool driver_set_power_state(int component_type, bool powered)
+{
+    if (!g_driver.comm_context.connected || component_type < COMPONENT_TEMPERATURE || component_type > COMPONENT_DOORS)
+    {
+        return false;
     }
 
-    bool temperature_on = (current_power_state & MASK_TEMP_SENSOR) != 0;
-    bool humidity_on = (current_power_state & MASK_HUMID_SENSOR) != 0;
+    // For sensors
+    if (component_type == COMPONENT_TEMPERATURE || component_type == COMPONENT_HUMIDITY)
+    {
+        // Read current power state to preserve the other sensor's state
+        uint8_t current_power_state = 0;
+        if (!read_register(BASE_CONTROL, OFFSET_POWER_SENSORS, &current_power_state))
+        {
+            return false;
+        }
 
-    // Update the requested component's state
-    if (component_type == COMPONENT_TEMPERATURE) {
-      temperature_on = powered;
-    } else { // COMPONENT_HUMIDITY
-      humidity_on = powered;
+        bool temperature_on = (current_power_state & MASK_TEMP_SENSOR) != 0;
+        bool humidity_on = (current_power_state & MASK_HUMID_SENSOR) != 0;
+
+        // Update the requested component's state
+        if (component_type == COMPONENT_TEMPERATURE)
+        {
+            temperature_on = powered;
+        }
+        else
+        { // COMPONENT_HUMIDITY
+            humidity_on = powered;
+        }
+
+        // Create bitmask and write to register
+        uint8_t value = protocol_create_bitmask(2, temperature_on, BIT_TEMP_SENSOR, humidity_on, BIT_HUMID_SENSOR);
+        return write_register(BASE_CONTROL, OFFSET_POWER_SENSORS, value);
     }
+    // For actuators
+    else
+    {
+        // Read current power state to preserve other actuators' states
+        uint8_t current_power_state = 0;
+        if (!read_register(BASE_CONTROL, OFFSET_POWER_ACTUATORS, &current_power_state))
+        {
+            return false;
+        }
 
-    // Create bitmask and write to register
-    uint8_t value = create_bitmask(2, temperature_on, BIT_TEMP_SENSOR, humidity_on, BIT_HUMID_SENSOR);
-    return write_register(BASE_CONTROL, OFFSET_POWER_SENSORS, value);
-  }
-  // For actuators
-  else {
-    // Read current power state to preserve other actuators' states
-    uint8_t current_power_state = 0;
-    if (!read_register(BASE_CONTROL, OFFSET_POWER_ACTUATORS, &current_power_state)) {
-      return false;
+        bool led_on = (current_power_state & MASK_LED) != 0;
+        bool fan_on = (current_power_state & MASK_FAN) != 0;
+        bool heater_on = (current_power_state & MASK_HEATER) != 0;
+        bool doors_on = (current_power_state & MASK_DOORS) != 0;
+
+        // Update the requested component's state
+        switch (component_type)
+        {
+        case COMPONENT_LED:
+            led_on = powered;
+            break;
+        case COMPONENT_FAN:
+            fan_on = powered;
+            break;
+        case COMPONENT_HEATER:
+            heater_on = powered;
+            break;
+        case COMPONENT_DOORS:
+            doors_on = powered;
+            break;
+        default:
+            return false;
+        }
+
+        // Create bitmask and write to register
+        uint8_t value = protocol_create_bitmask(4, led_on, BIT_LED, fan_on, BIT_FAN, heater_on, BIT_HEATER, doors_on, BIT_DOORS);
+        return write_register(BASE_CONTROL, OFFSET_POWER_ACTUATORS, value);
     }
-
-    bool led_on = (current_power_state & MASK_LED) != 0;
-    bool fan_on = (current_power_state & MASK_FAN) != 0;
-    bool heater_on = (current_power_state & MASK_HEATER) != 0;
-    bool doors_on = (current_power_state & MASK_DOORS) != 0;
-
-    // Update the requested component's state
-    switch (component_type) {
-    case COMPONENT_LED:
-      led_on = powered;
-      break;
-    case COMPONENT_FAN:
-      fan_on = powered;
-      break;
-    case COMPONENT_HEATER:
-      heater_on = powered;
-      break;
-    case COMPONENT_DOORS:
-      doors_on = powered;
-      break;
-    default:
-      return false;
-    }
-
-    // Create bitmask and write to register
-    uint8_t value = create_bitmask(4, led_on, BIT_LED, fan_on, BIT_FAN, heater_on, BIT_HEATER, doors_on, BIT_DOORS);
-    return write_register(BASE_CONTROL, OFFSET_POWER_ACTUATORS, value);
-  }
 }
 
 /**
@@ -809,80 +758,91 @@ EXPORT bool driver_set_power_state(int component_type, bool powered) {
  * @param component_type Type of component (0=TEMPERATURE, 1=HUMIDITY, 2=LED, 3=FAN, 4=HEATER, 5=DOORS)
  * @return true if successful, false otherwise
  */
-EXPORT bool driver_reset_component(int component_type) {
-  if (!g_driver.connected || component_type < COMPONENT_TEMPERATURE || component_type > COMPONENT_DOORS) {
-    return false;
-  }
-
-  // For sensors
-  if (component_type == COMPONENT_TEMPERATURE || component_type == COMPONENT_HUMIDITY) {
-    // Read current reset state to preserve the other sensor's state
-    uint8_t current_reset_state = 0;
-    if (!read_register(BASE_CONTROL, OFFSET_RESET_SENSORS, &current_reset_state)) {
-      return false;
+EXPORT bool driver_reset_component(int component_type)
+{
+    if (!g_driver.comm_context.connected || component_type < COMPONENT_TEMPERATURE || component_type > COMPONENT_DOORS)
+    {
+        return false;
     }
 
-    bool reset_temperature = (current_reset_state & MASK_TEMP_SENSOR) != 0;
-    bool reset_humidity = (current_reset_state & MASK_HUMID_SENSOR) != 0;
+    // For sensors
+    if (component_type == COMPONENT_TEMPERATURE || component_type == COMPONENT_HUMIDITY)
+    {
+        // Read current reset state to preserve the other sensor's state
+        uint8_t current_reset_state = 0;
+        if (!read_register(BASE_CONTROL, OFFSET_RESET_SENSORS, &current_reset_state))
+        {
+            return false;
+        }
 
-    // Update the requested component's state
-    if (component_type == COMPONENT_TEMPERATURE) {
-      reset_temperature = true;
-      reset_humidity = false;
-    } else { // COMPONENT_HUMIDITY
-      reset_temperature = false;
-      reset_humidity = true;
+        bool reset_temperature = (current_reset_state & MASK_TEMP_SENSOR) != 0;
+        bool reset_humidity = (current_reset_state & MASK_HUMID_SENSOR) != 0;
+
+        // Update the requested component's state
+        if (component_type == COMPONENT_TEMPERATURE)
+        {
+            reset_temperature = true;
+            reset_humidity = false;
+        }
+        else
+        { // COMPONENT_HUMIDITY
+            reset_temperature = false;
+            reset_humidity = true;
+        }
+
+        // Create bitmask and write to register
+        uint8_t value = protocol_create_bitmask(2, reset_temperature, BIT_TEMP_SENSOR, reset_humidity, BIT_HUMID_SENSOR);
+        return write_register(BASE_CONTROL, OFFSET_RESET_SENSORS, value);
     }
+    // For actuators
+    else
+    {
+        // Read current reset state to preserve other actuators' states
+        uint8_t current_reset_state = 0;
+        if (!read_register(BASE_CONTROL, OFFSET_RESET_ACTUATORS, &current_reset_state))
+        {
+            return false;
+        }
 
-    // Create bitmask and write to register
-    uint8_t value = create_bitmask(2, reset_temperature, BIT_TEMP_SENSOR, reset_humidity, BIT_HUMID_SENSOR);
-    return write_register(BASE_CONTROL, OFFSET_RESET_SENSORS, value);
-  }
-  // For actuators
-  else {
-    // Read current reset state to preserve other actuators' states
-    uint8_t current_reset_state = 0;
-    if (!read_register(BASE_CONTROL, OFFSET_RESET_ACTUATORS, &current_reset_state)) {
-      return false;
+        bool reset_led = (current_reset_state & MASK_LED) != 0;
+        bool reset_fan = (current_reset_state & MASK_FAN) != 0;
+        bool reset_heater = (current_reset_state & MASK_HEATER) != 0;
+        bool reset_doors = (current_reset_state & MASK_DOORS) != 0;
+
+        // Update the requested component's state
+        switch (component_type)
+        {
+        case COMPONENT_LED:
+            reset_led = true;
+            reset_fan = false;
+            reset_heater = false;
+            reset_doors = false;
+            break;
+        case COMPONENT_FAN:
+            reset_led = false;
+            reset_fan = true;
+            reset_heater = false;
+            reset_doors = false;
+            break;
+        case COMPONENT_HEATER:
+            reset_led = false;
+            reset_fan = false;
+            reset_heater = true;
+            reset_doors = false;
+            break;
+        case COMPONENT_DOORS:
+            reset_led = false;
+            reset_fan = false;
+            reset_heater = false;
+            reset_doors = true;
+            break;
+        default:
+            return false;
+        }
+
+        // Create bitmask and write to register
+        uint8_t value =
+            protocol_create_bitmask(4, reset_led, BIT_LED, reset_fan, BIT_FAN, reset_heater, BIT_HEATER, reset_doors, BIT_DOORS);
+        return write_register(BASE_CONTROL, OFFSET_RESET_ACTUATORS, value);
     }
-
-    bool reset_led = (current_reset_state & MASK_LED) != 0;
-    bool reset_fan = (current_reset_state & MASK_FAN) != 0;
-    bool reset_heater = (current_reset_state & MASK_HEATER) != 0;
-    bool reset_doors = (current_reset_state & MASK_DOORS) != 0;
-
-    // Update the requested component's state
-    switch (component_type) {
-    case COMPONENT_LED:
-      reset_led = true;
-      reset_fan = false;
-      reset_heater = false;
-      reset_doors = false;
-      break;
-    case COMPONENT_FAN:
-      reset_led = false;
-      reset_fan = true;
-      reset_heater = false;
-      reset_doors = false;
-      break;
-    case COMPONENT_HEATER:
-      reset_led = false;
-      reset_fan = false;
-      reset_heater = true;
-      reset_doors = false;
-      break;
-    case COMPONENT_DOORS:
-      reset_led = false;
-      reset_fan = false;
-      reset_heater = false;
-      reset_doors = true;
-      break;
-    default:
-      return false;
-    }
-
-    // Create bitmask and write to register
-    uint8_t value = create_bitmask(4, reset_led, BIT_LED, reset_fan, BIT_FAN, reset_heater, BIT_HEATER, reset_doors, BIT_DOORS);
-    return write_register(BASE_CONTROL, OFFSET_RESET_ACTUATORS, value);
-  }
 }

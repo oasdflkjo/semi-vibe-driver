@@ -6,11 +6,13 @@
 #ifndef SEMI_VIBE_PROTOCOL_H
 #define SEMI_VIBE_PROTOCOL_H
 
+#include <stdarg.h>
+#include <stdbool.h>
 #include <stdint.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 // Protocol constants
 #define BASE_RESERVED 0x0
@@ -73,12 +75,13 @@
 /**
  * @brief Message structure for the Semi-Vibe-Device protocol
  */
-typedef struct {
-  uint8_t base;   // Base address (1 hex digit)
-  uint8_t offset; // Offset address (2 hex digits)
-  uint8_t rw;     // Read/Write flag (0=read, 1=write)
-  uint8_t data;   // Data value (2 hex digits)
-  uint8_t error;  // Error code (0=no error, 1-3=error)
+typedef struct
+{
+    uint8_t base;   // Base address (1 hex digit)
+    uint8_t offset; // Offset address (2 hex digits)
+    uint8_t rw;     // Read/Write flag (0=read, 1=write)
+    uint8_t data;   // Data value (2 hex digits)
+    uint8_t error;  // Error code (0=no error, 1-3=error)
 } SemiVibeMessage;
 
 /**
@@ -86,73 +89,68 @@ typedef struct {
  *
  * @param command Command string (6 hex digits)
  * @param message Pointer to message structure to fill
- * @return int 1 if successful, 0 if invalid format
+ * @return bool true if successful, false if invalid format
  */
-static inline int parse_message(const char *command, SemiVibeMessage *message) {
-  // Validate command format (6 hex digits)
-  if (!command || !message || strlen(command) != 6) {
-    return 0;
-  }
-
-  for (int i = 0; i < 6; i++) {
-    if (!((command[i] >= '0' && command[i] <= '9') || (command[i] >= 'A' && command[i] <= 'F') ||
-          (command[i] >= 'a' && command[i] <= 'f'))) {
-      return 0;
-    }
-  }
-
-  // Parse command
-  char base_str[2] = {command[0], '\0'};
-  char offset_str[3] = {command[1], command[2], '\0'};
-  char rw_str[2] = {command[3], '\0'};
-  char data_str[3] = {command[4], command[5], '\0'};
-
-  message->base = (uint8_t)strtol(base_str, NULL, 16);
-  message->offset = (uint8_t)strtol(offset_str, NULL, 16);
-  message->rw = (uint8_t)strtol(rw_str, NULL, 16);
-  message->data = (uint8_t)strtol(data_str, NULL, 16);
-  message->error = 0;
-
-  return 1;
-}
+bool protocol_parse_message(const char *command, SemiVibeMessage *message);
 
 /**
  * @brief Format a message structure into a command string
  *
  * @param message Message structure
  * @param command Buffer to store the command string (must be at least 7 bytes)
- * @return int 1 if successful, 0 if invalid message
+ * @return bool true if successful, false if invalid message
  */
-static inline int format_message(const SemiVibeMessage *message, char *command) {
-  if (!message || !command) {
-    return 0;
-  }
-
-  if (message->error > 0) {
-    // Format error response
-    sprintf(command, "%1X%s", message->error, "FFFFF");
-  } else {
-    // Format normal command/response
-    sprintf(command, "%1X%02X%1X%02X", message->base, message->offset, message->rw, message->data);
-  }
-
-  return 1;
-}
+bool protocol_format_message(const SemiVibeMessage *message, char *command);
 
 /**
  * @brief Create an error message
  *
  * @param error_code Error code (1-3)
  * @param message Pointer to message structure to fill
- * @return int 1 if successful, 0 if invalid error code
+ * @return bool true if successful, false if invalid error code
  */
-static inline int create_error_message(uint8_t error_code, SemiVibeMessage *message) {
-  if (!message || error_code < 1 || error_code > 3) {
-    return 0;
-  }
+bool protocol_create_error(uint8_t error_code, SemiVibeMessage *message);
 
-  message->error = error_code;
-  return 1;
+/**
+ * @brief Create a read message
+ *
+ * @param base Base address
+ * @param offset Offset address
+ * @param message Pointer to message structure to fill
+ * @return bool true if successful
+ */
+bool protocol_create_read_message(uint8_t base, uint8_t offset, SemiVibeMessage *message);
+
+/**
+ * @brief Create a write message
+ *
+ * @param base Base address
+ * @param offset Offset address
+ * @param data Data to write
+ * @param message Pointer to message structure to fill
+ * @return bool true if successful
+ */
+bool protocol_create_write_message(uint8_t base, uint8_t offset, uint8_t data, SemiVibeMessage *message);
+
+/**
+ * @brief Check if a message is an error response
+ *
+ * @param message Message structure
+ * @return bool true if message is an error response
+ */
+bool protocol_is_error(const SemiVibeMessage *message);
+
+/**
+ * @brief Create a bitmask from boolean values
+ *
+ * @param count Number of boolean parameters
+ * @param ... Boolean values and their corresponding bit positions
+ * @return uint8_t Resulting bitmask
+ */
+uint8_t protocol_create_bitmask(int count, ...);
+
+#ifdef __cplusplus
 }
+#endif
 
 #endif /* SEMI_VIBE_PROTOCOL_H */
