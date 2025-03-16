@@ -33,7 +33,20 @@ void comm_log(CommContext *context, const char *format, ...)
         char buffer[BUFFER_SIZE];
         va_list args;
         va_start(args, format);
-        vsnprintf(buffer, BUFFER_SIZE, format, args);
+
+#ifdef _MSC_VER
+        // Use secure vsnprintf_s on Windows
+        vsnprintf_s(buffer, BUFFER_SIZE, _TRUNCATE, format, args);
+#else
+        // Use standard vsnprintf with explicit null termination
+        int result = vsnprintf(buffer, BUFFER_SIZE, format, args);
+        if (result < 0 || result >= BUFFER_SIZE)
+        {
+            // Ensure null termination in case of truncation or error
+            buffer[BUFFER_SIZE - 1] = '\0';
+        }
+#endif
+
         va_end(args);
 
         context->log_callback(buffer, context->user_data);
@@ -142,13 +155,34 @@ bool comm_connect(CommContext *context, const char *host, int port)
     if (context->host)
     {
         free(context->host);
+        context->host = NULL;
     }
-    context->host = _strdup(host_to_use);
+
+    // Safely duplicate the host string
+    size_t host_len = strlen(host_to_use) + 1; // +1 for null terminator
+#ifdef _MSC_VER
+    context->host = (char *)malloc(host_len);
+    if (context->host)
+    {
+        strncpy_s(context->host, host_len, host_to_use, _TRUNCATE);
+    }
+#else
+    context->host = (char *)malloc(host_len);
+    if (context->host)
+    {
+        strncpy(context->host, host_to_use, host_len - 1);
+        context->host[host_len - 1] = '\0'; // Ensure null termination
+    }
+#endif
+
     if (context->host == NULL)
     {
         comm_log(context, "Failed to allocate memory for host name");
+        close_socket(context->socket);
+        context->socket = SOCKET_ERROR_VALUE;
         return false;
     }
+
     context->port = port_to_use;
 
     // Create socket
@@ -181,18 +215,26 @@ bool comm_connect(CommContext *context, const char *host, int port)
     server_addr.sin_family = AF_INET;
     server_addr.sin_port = htons(port_to_use);
 
-    // Convert hostname to IP address
-    struct hostent *he;
-    if ((he = gethostbyname(host_to_use)) == NULL)
+    // Convert hostname to IP address using getaddrinfo instead of deprecated gethostbyname
+    struct addrinfo hints, *result = NULL;
+    memset(&hints, 0, sizeof(hints));
+    hints.ai_family = AF_INET;       // IPv4
+    hints.ai_socktype = SOCK_STREAM; // TCP
+
+    int status = getaddrinfo(host_to_use, NULL, &hints, &result);
+    if (status != 0 || result == NULL)
     {
-        comm_log(context, "Failed to resolve hostname");
+        comm_log(context, "Failed to resolve hostname: %s", gai_strerror(status));
         close_socket(context->socket);
         context->socket = SOCKET_ERROR_VALUE;
         return false;
     }
 
-    // Copy the IP address
-    memcpy(&server_addr.sin_addr, he->h_addr_list[0], he->h_length);
+    // Copy the resolved address
+    memcpy(&server_addr.sin_addr, &((struct sockaddr_in *)result->ai_addr)->sin_addr, sizeof(server_addr.sin_addr));
+
+    // Free the address info
+    freeaddrinfo(result);
 
     if (connect(context->socket, (struct sockaddr *)&server_addr, sizeof(server_addr)) < 0)
     {
@@ -274,11 +316,19 @@ bool comm_send_receive(CommContext *context, const char *message, char *response
         return false;
     }
 
+    // Validate message length to prevent buffer overflows
+    size_t message_len = strlen(message);
+    if (message_len == 0 || message_len > BUFFER_SIZE - 1)
+    {
+        comm_log(context, "Invalid message length: %zu", message_len);
+        return false;
+    }
+
     // Log the message being sent
     comm_log(context, "Sending message: %s", message);
 
     // Send message
-    if (send(context->socket, message, (int)strlen(message), 0) < 0)
+    if (send(context->socket, message, (int)message_len, 0) < 0)
     {
         int error = WSAGetLastError();
         if (error == WSAETIMEDOUT)
@@ -313,7 +363,17 @@ bool comm_send_receive(CommContext *context, const char *message, char *response
         return false;
     }
 
-    response[bytes_received] = '\0';
+    // Ensure null termination
+    if ((size_t)bytes_received >= response_size)
+    {
+        response[response_size - 1] = '\0';
+        comm_log(context, "Response truncated to fit buffer");
+    }
+    else
+    {
+        response[bytes_received] = '\0';
+    }
+
     comm_log(context, "Received response: %s", response);
     context->last_error = COMM_ERROR_NONE;
     return true;

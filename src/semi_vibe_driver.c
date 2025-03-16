@@ -79,7 +79,20 @@ static void set_last_error(struct DriverHandle *handle, int error_code, const ch
 
     va_list args;
     va_start(args, format);
-    vsnprintf(handle->last_error_message, ERROR_MESSAGE_SIZE, format, args);
+
+#ifdef _MSC_VER
+    // Use secure vsnprintf_s on Windows
+    vsnprintf_s(handle->last_error_message, ERROR_MESSAGE_SIZE, _TRUNCATE, format, args);
+#else
+    // Use standard vsnprintf with explicit null termination
+    int result = vsnprintf(handle->last_error_message, ERROR_MESSAGE_SIZE, format, args);
+    if (result < 0 || result >= ERROR_MESSAGE_SIZE)
+    {
+        // Ensure null termination in case of truncation or error
+        handle->last_error_message[ERROR_MESSAGE_SIZE - 1] = '\0';
+    }
+#endif
+
     va_end(args);
 
     // Log the error if a callback is available
@@ -1818,6 +1831,12 @@ static bool format_read_command(char *command, size_t command_size, uint8_t base
         return false;
     }
 
+    // Validate parameters
+    if (base > 0xF || offset > 0xFF)
+    {
+        return false;
+    }
+
     // Create a message structure
     SemiVibeMessage message = {0};
     message.base = base;
@@ -1846,6 +1865,12 @@ static bool format_write_command(char *command, size_t command_size, uint8_t bas
         return false;
     }
 
+    // Validate parameters
+    if (base > 0xF || offset > 0xFF)
+    {
+        return false;
+    }
+
     // Create a message structure
     SemiVibeMessage message = {0};
     message.base = base;
@@ -1867,6 +1892,13 @@ static bool format_write_command(char *command, size_t command_size, uint8_t bas
 static bool parse_response(const char *response, uint8_t *value)
 {
     if (!response || !value)
+    {
+        return false;
+    }
+
+    // Validate response length
+    size_t response_len = strlen(response);
+    if (response_len < 6 || response_len >= BUFFER_SIZE)
     {
         return false;
     }
